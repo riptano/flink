@@ -18,41 +18,33 @@
 
 package org.apache.flink.connector.pulsar.source.enumerator.subscriber.impl;
 
+import org.apache.flink.connector.pulsar.common.request.PulsarAdminRequest;
 import org.apache.flink.connector.pulsar.source.enumerator.subscriber.PulsarSubscriber;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicMetadata;
-import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicPartition;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicRange;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.range.RangeGenerator.KeySharedMode;
 
-import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.apache.flink.connector.pulsar.common.utils.PulsarExceptionUtils.sneakyThrow;
 
 /** PulsarSubscriber abstract class to simplify Pulsar admin related operations. */
 public abstract class BasePulsarSubscriber implements PulsarSubscriber {
     private static final long serialVersionUID = 2053021503331058888L;
 
-    protected TopicMetadata queryTopicMetadata(PulsarAdmin pulsarAdmin, String topicName) {
-        // Drop the complete topic name for a clean partitioned topic name.
-        String completeTopicName = TopicNameUtils.topicName(topicName);
+    protected TopicMetadata queryTopicMetadata(PulsarAdminRequest adminRequest, String topicName) {
         try {
-            PartitionedTopicMetadata metadata =
-                    pulsarAdmin.topics().getPartitionedTopicMetadata(completeTopicName);
-            return new TopicMetadata(topicName, metadata.partitions);
+            return adminRequest.getTopicMetadata(topicName);
+        } catch (PulsarAdminException.NotFoundException e) {
+            return null;
         } catch (PulsarAdminException e) {
-            if (e.getStatusCode() == 404) {
-                // Return null for skipping the topic metadata query.
-                return null;
-            } else {
-                // This method would cause failure for subscribers.
-                throw new IllegalStateException(e);
-            }
+            sneakyThrow(e);
+            return null;
         }
     }
 

@@ -52,7 +52,7 @@ public abstract class PulsarTestContext<T> implements ExternalContext {
 
     @Override
     public List<URL> getConnectorJarPaths() {
-        // We don't need any test jars definition. They are provided in docker-related environments.
+        // We don't need any tests jar definition. They are provided in docker related environments.
         return Collections.emptyList();
     }
 

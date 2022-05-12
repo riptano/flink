@@ -19,12 +19,12 @@
 package org.apache.flink.connector.pulsar.source.enumerator.subscriber;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.connector.pulsar.common.request.PulsarAdminRequest;
 import org.apache.flink.connector.pulsar.source.enumerator.subscriber.impl.TopicListSubscriber;
 import org.apache.flink.connector.pulsar.source.enumerator.subscriber.impl.TopicPatternSubscriber;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicPartition;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.range.RangeGenerator;
 
-import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.api.RegexSubscriptionMode;
 
 import java.io.Serializable;
@@ -50,13 +50,13 @@ public interface PulsarSubscriber extends Serializable {
      * Get a set of subscribed {@link TopicPartition}s. The method could throw {@link
      * IllegalStateException}, an extra try catch is required.
      *
-     * @param pulsarAdmin The admin interface used to retrieve subscribed topic partitions.
+     * @param metadataRequest Used to retrieve subscribed topic partitions.
      * @param rangeGenerator The range for different partitions.
      * @param parallelism The parallelism of flink source.
      * @return A subscribed {@link TopicPartition} for each pulsar topic partition.
      */
     Set<TopicPartition> getSubscribedTopicPartitions(
-            PulsarAdmin pulsarAdmin, RangeGenerator rangeGenerator, int parallelism);
+            PulsarAdminRequest metadataRequest, RangeGenerator rangeGenerator, int parallelism);
 
     // ----------------- factory methods --------------
 

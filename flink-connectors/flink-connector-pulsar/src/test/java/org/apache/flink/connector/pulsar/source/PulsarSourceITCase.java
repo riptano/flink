@@ -30,15 +30,17 @@ import org.apache.flink.connector.testframe.junit.annotations.TestExternalSystem
 import org.apache.flink.connector.testframe.junit.annotations.TestSemantics;
 import org.apache.flink.connector.testframe.testsuites.SourceTestSuiteBase;
 import org.apache.flink.streaming.api.CheckpointingMode;
+import org.apache.flink.testutils.junit.FailsOnJava11;
 
 import org.apache.pulsar.client.api.SubscriptionType;
-import org.junit.jupiter.api.Tag;
+import org.junit.experimental.categories.Category;
 
 /**
  * Unit test class for {@link PulsarSource}. Used for {@link SubscriptionType#Exclusive}
  * subscription.
  */
-@Tag("org.apache.flink.testutils.junit.FailsOnJava11")
+@SuppressWarnings("unused")
+@Category(value = {FailsOnJava11.class})
 class PulsarSourceITCase extends SourceTestSuiteBase<String> {
 
     // Defines test environment on Flink MiniCluster

@@ -2,3 +2,6 @@
 #Thu Mar 03 12:42:13 CST 2022
 Tests\ inheriting\ from\ AbstractTestBase\ should\ have\ name\ ending\ with\ ITCase=3ac3a1dc-681f-4213-9990-b7b3298a20bc
 ITCASE\ tests\ should\ use\ a\ MiniCluster\ resource\ or\ extension=f4d91193-72ba-4ce4-ad83-98f780dce581
+#Thu May 12 11:35:25 CST 2022
+Tests\ inheriting\ from\ AbstractTestBase\ should\ have\ name\ ending\ with\ ITCase=48c7dd05-c840-4ac4-a3ba-919e07191450
+ITCASE\ tests\ should\ use\ a\ MiniCluster\ resource\ or\ extension=a2ce237e-b050-4ba0-8748-d83637a207a8

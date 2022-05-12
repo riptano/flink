@@ -29,6 +29,7 @@ import org.apache.flink.tests.util.pulsar.common.FlinkContainerWithPulsarEnviron
 import org.apache.flink.tests.util.pulsar.common.PulsarContainerTestEnvironment;
 import org.apache.flink.tests.util.pulsar.source.ExclusiveSubscriptionContext;
 import org.apache.flink.tests.util.pulsar.source.FailoverSubscriptionContext;
+import org.apache.flink.testutils.junit.FailsOnJava11;
 
 import org.junit.jupiter.api.Tag;
 
@@ -37,12 +38,8 @@ import org.junit.jupiter.api.Tag;
  * subscription.
  */
 @SuppressWarnings("unused")
-@Tag("org.apache.flink.testutils.junit.FailsOnJava11")
+@Category(value = {FailsOnJava11.class})
 public class PulsarSourceOrderedE2ECase extends SourceTestSuiteBase<String> {
-
-    // Defines the Semantic.
-    @TestSemantics
-    CheckpointingMode[] semantics = new CheckpointingMode[] {CheckpointingMode.EXACTLY_ONCE};
 
     // Defines TestEnvironment.
     @TestEnv
@@ -51,6 +48,10 @@ public class PulsarSourceOrderedE2ECase extends SourceTestSuiteBase<String> {
     // Defines ConnectorExternalSystem.
     @TestExternalSystem
     PulsarContainerTestEnvironment pulsar = new PulsarContainerTestEnvironment(flink);
+
+    // Defines the Semantic.
+    @TestSemantics
+    CheckpointingMode[] semantics = new CheckpointingMode[] {CheckpointingMode.EXACTLY_ONCE};
 
     // Defines a set of external context Factories for different test cases.
     @TestContext

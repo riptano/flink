@@ -1,0 +1,31 @@
+name: Daily End to End Test
+
+on:
+  schedule:
+    - cron: 0 1 * * *
+  workflow_dispatch:
+jobs:
+  sync:
+    name: Run End to End test for pulsar
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch:
+          - develop
+          - release-sn-1.14
+          - release-sn-1.15
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ matrix.branch }}
+      - name: Set up JDK 8
+        uses: actions/setup-java@v2
+        with:
+          java-version: '8'
+          cache: 'maven'
+          distribution: 'zulu'
+      - name: Run e2e Test
+        run: |
+          mvn -ntp clean install -DskipTests -Drat.skip=true
+          mvn -ntp -pl 'flink-end-to-end-tests/flink-end-to-end-tests-pulsar' test -Drat.skip=true

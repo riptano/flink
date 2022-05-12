@@ -35,10 +35,10 @@ import static org.apache.flink.connector.pulsar.common.schema.PulsarSchemaUtils.
  * @param <T> The output type of the message.
  */
 @Internal
-class PulsarSchemaWrapper<T> implements PulsarDeserializationSchema<T> {
+public class PulsarSchemaWrapper<T> implements PulsarDeserializationSchema<T> {
     private static final long serialVersionUID = -4864701207257059158L;
 
-    /** The serializable pulsar schema, it wrap the schema with type class. */
+    /** The serializable pulsar schema, it wraps the schema with type class. */
     private final PulsarSchema<T> pulsarSchema;
 
     public PulsarSchemaWrapper(PulsarSchema<T> pulsarSchema) {
@@ -58,5 +58,9 @@ class PulsarSchemaWrapper<T> implements PulsarDeserializationSchema<T> {
     public TypeInformation<T> getProducedType() {
         SchemaInfo info = pulsarSchema.getSchemaInfo();
         return createTypeInformation(info);
+    }
+
+    public PulsarSchema<?> pulsarSchema() {
+        return pulsarSchema;
     }
 }

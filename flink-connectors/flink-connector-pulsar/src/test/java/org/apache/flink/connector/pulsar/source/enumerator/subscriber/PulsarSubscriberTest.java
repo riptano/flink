@@ -18,6 +18,7 @@
 
 package org.apache.flink.connector.pulsar.source.enumerator.subscriber;
 
+import org.apache.flink.connector.pulsar.common.request.PulsarAdminRequest;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicPartition;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.range.FullRangeGenerator;
 import org.apache.flink.connector.pulsar.testutils.PulsarTestSuiteBase;
@@ -37,6 +38,7 @@ import static org.apache.flink.connector.pulsar.source.enumerator.subscriber.Pul
 import static org.apache.flink.connector.pulsar.source.enumerator.subscriber.PulsarSubscriber.getTopicPatternSubscriber;
 import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.topicName;
 import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.topicNameWithPartition;
+import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicRange.createFullRange;
 import static org.apache.pulsar.client.api.RegexSubscriptionMode.AllTopics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -73,15 +75,17 @@ class PulsarSubscriberTest extends PulsarTestSuiteBase {
 
     @Test
     void topicListSubscriber() {
+        PulsarAdminRequest adminRequest =
+                new PulsarAdminRequest(operator().admin(), operator().config());
         PulsarSubscriber subscriber = getTopicListSubscriber(Arrays.asList(topic1, topic2));
         Set<TopicPartition> topicPartitions =
                 subscriber.getSubscribedTopicPartitions(
-                        operator().admin(), new FullRangeGenerator(), NUM_PARALLELISM);
+                        adminRequest, new FullRangeGenerator(), NUM_PARALLELISM);
         Set<TopicPartition> expectedPartitions = new HashSet<>();
 
         for (int i = 0; i < NUM_PARTITIONS_PER_TOPIC; i++) {
-            expectedPartitions.add(new TopicPartition(topic1, i));
-            expectedPartitions.add(new TopicPartition(topic2, i));
+            expectedPartitions.add(new TopicPartition(topic1, i, singletonList(createFullRange())));
+            expectedPartitions.add(new TopicPartition(topic2, i, singletonList(createFullRange())));
         }
 
         assertEquals(expectedPartitions, topicPartitions);
@@ -131,20 +135,73 @@ class PulsarSubscriberTest extends PulsarTestSuiteBase {
     }
 
     @Test
+    void subscribeOnePartitionOfMultiplePartitionTopic() {
+        PulsarAdminRequest adminRequest =
+                new PulsarAdminRequest(operator().admin(), operator().config());
+        String partition = topicNameWithPartition(topic1, 2);
+
+        PulsarSubscriber subscriber = getTopicListSubscriber(singletonList(partition));
+        Set<TopicPartition> partitions =
+                subscriber.getSubscribedTopicPartitions(
+                        adminRequest, new FullRangeGenerator(), NUM_PARALLELISM);
+
+        TopicPartition desiredPartition =
+                new TopicPartition(topic1, 2, singletonList(createFullRange()));
+        assertThat(partitions).hasSize(1).containsExactly(desiredPartition);
+    }
+
+    @Test
+    void subscribeNonPartitionedTopicList() {
+        PulsarAdminRequest adminRequest =
+                new PulsarAdminRequest(operator().admin(), operator().config());
+        PulsarSubscriber subscriber = getTopicListSubscriber(singletonList(topic4));
+        Set<TopicPartition> partitions =
+                subscriber.getSubscribedTopicPartitions(
+                        adminRequest, new FullRangeGenerator(), NUM_PARALLELISM);
+
+        TopicPartition desiredPartition =
+                new TopicPartition(topic4, -1, singletonList(createFullRange()));
+        assertThat(partitions).hasSize(1).containsExactly(desiredPartition);
+    }
+
+    @Test
+    void subscribeNonPartitionedTopicPattern() {
+        PulsarAdminRequest adminRequest =
+                new PulsarAdminRequest(operator().admin(), operator().config());
+        PulsarSubscriber subscriber =
+                getTopicPatternSubscriber(
+                        Pattern.compile("persistent://public/default/non-partitioned-topic*?"),
+                        AllTopics);
+
+        Set<TopicPartition> topicPartitions =
+                subscriber.getSubscribedTopicPartitions(
+                        adminRequest, new FullRangeGenerator(), NUM_PARALLELISM);
+
+        Set<TopicPartition> expectedPartitions = new HashSet<>();
+
+        expectedPartitions.add(new TopicPartition(topic4, -1, singletonList(createFullRange())));
+        expectedPartitions.add(new TopicPartition(topic5, -1, singletonList(createFullRange())));
+
+        assertEquals(expectedPartitions, topicPartitions);
+    }
+
+    @Test
     void topicPatternSubscriber() {
+        PulsarAdminRequest adminRequest =
+                new PulsarAdminRequest(operator().admin(), operator().config());
         PulsarSubscriber subscriber =
                 getTopicPatternSubscriber(
                         Pattern.compile("persistent://public/default/topic*?"), AllTopics);
 
         Set<TopicPartition> topicPartitions =
                 subscriber.getSubscribedTopicPartitions(
-                        operator().admin(), new FullRangeGenerator(), NUM_PARALLELISM);
+                        adminRequest, new FullRangeGenerator(), NUM_PARALLELISM);
 
         Set<TopicPartition> expectedPartitions = new HashSet<>();
 
         for (int i = 0; i < NUM_PARTITIONS_PER_TOPIC; i++) {
-            expectedPartitions.add(new TopicPartition(topic1, i));
-            expectedPartitions.add(new TopicPartition(topic3, i));
+            expectedPartitions.add(new TopicPartition(topic1, i, singletonList(createFullRange())));
+            expectedPartitions.add(new TopicPartition(topic3, i, singletonList(createFullRange())));
         }
 
         assertEquals(expectedPartitions, topicPartitions);

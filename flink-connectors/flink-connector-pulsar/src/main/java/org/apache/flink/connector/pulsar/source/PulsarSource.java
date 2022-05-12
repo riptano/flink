@@ -43,6 +43,10 @@ import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplit;
 import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplitSerializer;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 
+import org.apache.pulsar.client.api.CryptoKeyReader;
+
+import javax.annotation.Nullable;
+
 /**
  * The Source implementation of Pulsar. Please use a {@link PulsarSourceBuilder} to construct a
  * {@link PulsarSource}. The following example shows how to create a PulsarSource emitting records
@@ -89,18 +93,22 @@ public final class PulsarSource<OUT>
     /** The pulsar deserialization schema used for deserializing message. */
     private final PulsarDeserializationSchema<OUT> deserializationSchema;
 
+    @Nullable private final CryptoKeyReader cryptoKeyReader;
+
     /**
      * The constructor for PulsarSource, it's package protected for forcing using {@link
      * PulsarSourceBuilder}.
      */
-    PulsarSource(
+    @SuppressWarnings("java:S107")
+    public PulsarSource(
             SourceConfiguration sourceConfiguration,
             PulsarSubscriber subscriber,
             RangeGenerator rangeGenerator,
             StartCursor startCursor,
             StopCursor stopCursor,
             Boundedness boundedness,
-            PulsarDeserializationSchema<OUT> deserializationSchema) {
+            PulsarDeserializationSchema<OUT> deserializationSchema,
+            @Nullable CryptoKeyReader cryptoKeyReader) {
         this.sourceConfiguration = sourceConfiguration;
         this.subscriber = subscriber;
         this.rangeGenerator = rangeGenerator;
@@ -108,6 +116,7 @@ public final class PulsarSource<OUT>
         this.stopCursor = stopCursor;
         this.boundedness = boundedness;
         this.deserializationSchema = deserializationSchema;
+        this.cryptoKeyReader = cryptoKeyReader;
     }
 
     /**
@@ -134,7 +143,7 @@ public final class PulsarSource<OUT>
         deserializationSchema.open(initializationContext, sourceConfiguration);
 
         return PulsarSourceReaderFactory.create(
-                readerContext, deserializationSchema, sourceConfiguration);
+                readerContext, deserializationSchema, sourceConfiguration, cryptoKeyReader);
     }
 
     @Internal

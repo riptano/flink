@@ -18,52 +18,56 @@
 
 package org.apache.flink.connector.pulsar.source.enumerator.subscriber.impl;
 
+import org.apache.flink.connector.pulsar.common.request.PulsarAdminRequest;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicMetadata;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicPartition;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicRange;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.range.RangeGenerator;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.range.RangeGenerator.KeySharedMode;
 
-import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.flink.shaded.guava30.com.google.common.collect.ImmutableList;
+
 import org.apache.pulsar.common.naming.TopicName;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.isPartition;
+import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.isPartitioned;
 
 /** the implements of consuming multiple topics. */
 public class TopicListSubscriber extends BasePulsarSubscriber {
     private static final long serialVersionUID = 6473918213832993116L;
 
+    private final List<String> topics;
     private final List<String> partitions;
-    private final List<String> fullTopicNames;
 
-    public TopicListSubscriber(List<String> fullTopicNameOrPartitions) {
-        this.partitions = new ArrayList<>();
-        this.fullTopicNames = new ArrayList<>();
+    public TopicListSubscriber(List<String> topics) {
+        ImmutableList.Builder<String> topicsBuilder = ImmutableList.builder();
+        ImmutableList.Builder<String> partitionsBuilder = ImmutableList.builder();
 
-        for (String fullTopicNameOrPartition : fullTopicNameOrPartitions) {
-            if (isPartition(fullTopicNameOrPartition)) {
-                this.partitions.add(fullTopicNameOrPartition);
+        for (String topic : topics) {
+            if (isPartitioned(topic)) {
+                partitionsBuilder.add(topic);
             } else {
-                this.fullTopicNames.add(fullTopicNameOrPartition);
+                topicsBuilder.add(topic);
             }
         }
+
+        this.topics = topicsBuilder.build();
+        this.partitions = partitionsBuilder.build();
     }
 
     @Override
     public Set<TopicPartition> getSubscribedTopicPartitions(
-            PulsarAdmin pulsarAdmin, RangeGenerator rangeGenerator, int parallelism) {
+            PulsarAdminRequest metadataRequest, RangeGenerator rangeGenerator, int parallelism) {
         Set<TopicPartition> results = new HashSet<>();
 
         // Query topics from Pulsar.
-        for (String topic : fullTopicNames) {
-            TopicMetadata metadata = queryTopicMetadata(pulsarAdmin, topic);
+        for (String topic : topics) {
+            TopicMetadata metadata = queryTopicMetadata(metadataRequest, topic);
             List<TopicRange> ranges = rangeGenerator.range(metadata, parallelism);
-            KeySharedMode mode = rangeGenerator.keyShareMode(metadata, parallelism);
+            RangeGenerator.KeySharedMode mode = rangeGenerator.keyShareMode(metadata, parallelism);
 
             results.addAll(toTopicPartitions(metadata, ranges, mode));
         }
@@ -73,9 +77,9 @@ public class TopicListSubscriber extends BasePulsarSubscriber {
             String name = topicName.getPartitionedTopicName();
             int index = topicName.getPartitionIndex();
 
-            TopicMetadata metadata = queryTopicMetadata(pulsarAdmin, name);
+            TopicMetadata metadata = queryTopicMetadata(metadataRequest, name);
             List<TopicRange> ranges = rangeGenerator.range(metadata, parallelism);
-            KeySharedMode mode = rangeGenerator.keyShareMode(metadata, parallelism);
+            RangeGenerator.KeySharedMode mode = rangeGenerator.keyShareMode(metadata, parallelism);
 
             results.addAll(toTopicPartitions(name, index, ranges, mode));
         }

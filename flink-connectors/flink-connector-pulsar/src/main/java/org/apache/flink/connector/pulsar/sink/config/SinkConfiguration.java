@@ -32,9 +32,10 @@ import org.apache.pulsar.client.api.Schema;
 import java.util.Objects;
 
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_BATCHING_MAX_MESSAGES;
-import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_MAX_PENDING_MESSAGES_ON_PARALLELISM;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_MAX_RECOMMIT_TIMES;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_MESSAGE_KEY_HASH;
+import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_SINK_DEFAULT_TOPIC_PARTITIONS;
+import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_SINK_TOPIC_AUTO_CREATION;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_TOPIC_METADATA_REFRESH_INTERVAL;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_WRITE_DELIVERY_GUARANTEE;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_WRITE_SCHEMA_EVOLUTION;
@@ -51,8 +52,9 @@ public class SinkConfiguration extends PulsarConfiguration {
     private final int partitionSwitchSize;
     private final MessageKeyHash messageKeyHash;
     private final boolean enableSchemaEvolution;
-    private final int maxPendingMessages;
     private final int maxRecommitTimes;
+    private final boolean enableTopicAutoCreation;
+    private final int defaultTopicPartitions;
 
     public SinkConfiguration(Configuration configuration) {
         super(configuration);
@@ -63,8 +65,9 @@ public class SinkConfiguration extends PulsarConfiguration {
         this.partitionSwitchSize = getInteger(PULSAR_BATCHING_MAX_MESSAGES);
         this.messageKeyHash = get(PULSAR_MESSAGE_KEY_HASH);
         this.enableSchemaEvolution = get(PULSAR_WRITE_SCHEMA_EVOLUTION);
-        this.maxPendingMessages = get(PULSAR_MAX_PENDING_MESSAGES_ON_PARALLELISM);
         this.maxRecommitTimes = get(PULSAR_MAX_RECOMMIT_TIMES);
+        this.enableTopicAutoCreation = get(PULSAR_SINK_TOPIC_AUTO_CREATION);
+        this.defaultTopicPartitions = get(PULSAR_SINK_DEFAULT_TOPIC_PARTITIONS);
     }
 
     /** The delivery guarantee changes the behavior of {@link PulsarWriter}. */
@@ -111,17 +114,19 @@ public class SinkConfiguration extends PulsarConfiguration {
         return enableSchemaEvolution;
     }
 
-    /**
-     * Pulsar message is sent asynchronously. Set this option for limiting the pending messages in a
-     * Pulsar writer instance.
-     */
-    public int getMaxPendingMessages() {
-        return maxPendingMessages;
-    }
-
     /** The maximum allowed recommitting time for a Pulsar transaction. */
     public int getMaxRecommitTimes() {
         return maxRecommitTimes;
+    }
+
+    /** Could the connector auto create the non-existed topics on the Pulsar? */
+    public boolean isEnableTopicAutoCreation() {
+        return enableTopicAutoCreation;
+    }
+
+    /** The default partition size when we enable the topic auto creation. */
+    public int getDefaultTopicPartitions() {
+        return defaultTopicPartitions;
     }
 
     @Override
@@ -136,25 +141,29 @@ public class SinkConfiguration extends PulsarConfiguration {
             return false;
         }
         SinkConfiguration that = (SinkConfiguration) o;
-        return transactionTimeoutMillis == that.transactionTimeoutMillis
+        return deliveryGuarantee == that.deliveryGuarantee
+                && transactionTimeoutMillis == that.transactionTimeoutMillis
                 && topicMetadataRefreshInterval == that.topicMetadataRefreshInterval
                 && partitionSwitchSize == that.partitionSwitchSize
-                && enableSchemaEvolution == that.enableSchemaEvolution
                 && messageKeyHash == that.messageKeyHash
-                && maxPendingMessages == that.maxPendingMessages
-                && maxRecommitTimes == that.maxRecommitTimes;
+                && enableSchemaEvolution == that.enableSchemaEvolution
+                && maxRecommitTimes == that.maxRecommitTimes
+                && enableTopicAutoCreation == that.enableTopicAutoCreation
+                && defaultTopicPartitions == that.defaultTopicPartitions;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
                 super.hashCode(),
+                deliveryGuarantee,
                 transactionTimeoutMillis,
                 topicMetadataRefreshInterval,
                 partitionSwitchSize,
                 messageKeyHash,
                 enableSchemaEvolution,
-                maxPendingMessages,
-                maxRecommitTimes);
+                maxRecommitTimes,
+                enableTopicAutoCreation,
+                defaultTopicPartitions);
     }
 }

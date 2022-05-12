@@ -22,15 +22,17 @@ import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.SourceReaderBase;
 import org.apache.flink.connector.base.source.reader.synchronization.FutureCompletingBlockingQueue;
+import org.apache.flink.connector.pulsar.common.request.PulsarAdminRequest;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.reader.emitter.PulsarRecordEmitter;
 import org.apache.flink.connector.pulsar.source.reader.fetcher.PulsarFetcherManagerBase;
-import org.apache.flink.connector.pulsar.source.reader.message.PulsarMessage;
 import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplit;
 import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplitState;
 
-import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.PulsarClient;
+
+import java.util.Set;
 
 /**
  * The common pulsar source reader for both ordered & unordered message consuming.
@@ -39,29 +41,25 @@ import org.apache.pulsar.client.api.PulsarClient;
  */
 abstract class PulsarSourceReaderBase<OUT>
         extends SourceReaderBase<
-                PulsarMessage<OUT>, OUT, PulsarPartitionSplit, PulsarPartitionSplitState> {
+                Message<byte[]>, OUT, PulsarPartitionSplit, PulsarPartitionSplitState> {
 
     protected final SourceConfiguration sourceConfiguration;
     protected final PulsarClient pulsarClient;
-    protected final PulsarAdmin pulsarAdmin;
+    protected final PulsarAdminRequest adminRequest;
 
     protected PulsarSourceReaderBase(
-            FutureCompletingBlockingQueue<RecordsWithSplitIds<PulsarMessage<OUT>>> elementsQueue,
-            PulsarFetcherManagerBase<OUT> splitFetcherManager,
+            FutureCompletingBlockingQueue<RecordsWithSplitIds<Message<byte[]>>> elementsQueue,
+            PulsarFetcherManagerBase splitFetcherManager,
+            PulsarRecordEmitter<OUT> recordEmitter,
             SourceReaderContext context,
             SourceConfiguration sourceConfiguration,
             PulsarClient pulsarClient,
-            PulsarAdmin pulsarAdmin) {
-        super(
-                elementsQueue,
-                splitFetcherManager,
-                new PulsarRecordEmitter<>(),
-                sourceConfiguration,
-                context);
+            PulsarAdminRequest adminRequest) {
+        super(elementsQueue, splitFetcherManager, recordEmitter, sourceConfiguration, context);
 
         this.sourceConfiguration = sourceConfiguration;
         this.pulsarClient = pulsarClient;
-        this.pulsarAdmin = pulsarAdmin;
+        this.adminRequest = adminRequest;
     }
 
     @Override
@@ -75,6 +73,12 @@ abstract class PulsarSourceReaderBase<OUT>
         return splitState.toPulsarPartitionSplit();
     }
 
+    protected void closeFinishedSplits(Set<String> finishedSplitIds) {
+        for (String splitId : finishedSplitIds) {
+            ((PulsarFetcherManagerBase) splitFetcherManager).closeFetcher(splitId);
+        }
+    }
+
     @Override
     public void close() throws Exception {
         // Close the all the consumers first.
@@ -82,6 +86,6 @@ abstract class PulsarSourceReaderBase<OUT>
 
         // Close shared pulsar resources.
         pulsarClient.shutdown();
-        pulsarAdmin.close();
+        adminRequest.close();
     }
 }

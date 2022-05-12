@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.stream.Collectors.toList;
+import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.extractPartitionId;
+import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.isPartitioned;
 import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.topicName;
 import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.topicNameWithPartition;
 import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicRange.createFullRange;
@@ -46,6 +48,14 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 @PublicEvolving
 public class TopicPartition implements Serializable {
     private static final long serialVersionUID = -1474354741550810953L;
+
+    private static final List<TopicRange> FULL_RANGES = ImmutableList.of(createFullRange());
+
+    /**
+     * If {@link TopicPartition#getPartitionId()} is equal to this. This topic partition wouldn't be
+     * a partition instance. It would be a top topic name.
+     */
+    public static final int NON_PARTITION_ID = -1;
 
     private static final List<TopicRange> FULL_RANGES = ImmutableList.of(createFullRange());
 
@@ -74,6 +84,10 @@ public class TopicPartition implements Serializable {
      */
     private final KeySharedMode mode;
 
+    public TopicPartition(String topic) {
+        this(topic, extractPartitionId(topic));
+    }
+
     public TopicPartition(String topic, int partitionId) {
         this(topic, partitionId, FULL_RANGES, SPLIT);
     }
@@ -85,7 +99,10 @@ public class TopicPartition implements Serializable {
     public TopicPartition(
             String topic, int partitionId, List<TopicRange> ranges, KeySharedMode mode) {
         this.topic = topicName(checkNotNull(topic));
-        this.partitionId = partitionId;
+        this.partitionId =
+                partitionId == NON_PARTITION_ID && isPartitioned(topic)
+                        ? extractPartitionId(topic)
+                        : partitionId;
         this.ranges = checkNotNull(ranges);
         this.mode = mode;
     }
@@ -98,12 +115,17 @@ public class TopicPartition implements Serializable {
         return partitionId;
     }
 
+    /** @return Is this a partition instance or a topic instance? */
+    public boolean isPartition() {
+        return partitionId != NON_PARTITION_ID;
+    }
+
     /**
      * Pulsar split the topic partition into a bunch of small topics, we would get the real topic
      * name by using this method.
      */
     public String getFullTopicName() {
-        if (partitionId >= 0) {
+        if (isPartition()) {
             return topicNameWithPartition(topic, partitionId);
         } else {
             return topic;

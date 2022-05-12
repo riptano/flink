@@ -30,4 +30,18 @@ public class NeverStopCursor implements StopCursor {
     public StopCondition shouldStop(Message<?> message) {
         return StopCondition.CONTINUE;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        return o != null && getClass() == o.getClass();
+    }
+
+    @Override
+    public int hashCode() {
+        return 31;
+    }
 }

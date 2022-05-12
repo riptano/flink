@@ -23,10 +23,12 @@ import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.pulsar.common.config.PulsarConfiguration;
+import org.apache.flink.connector.pulsar.sink.writer.serializer.PulsarSchemaWrapper;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.CursorPosition;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.StartCursor;
 
 import org.apache.pulsar.client.api.ConsumerBuilder;
+import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 
@@ -36,10 +38,12 @@ import java.util.Objects;
 import static org.apache.flink.connector.base.source.reader.SourceReaderOptions.ELEMENT_QUEUE_CAPACITY;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_ALLOW_KEY_SHARED_OUT_OF_ORDER_DELIVERY;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_AUTO_COMMIT_CURSOR_INTERVAL;
+import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_DEFAULT_FETCH_TIME;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_ENABLE_AUTO_ACKNOWLEDGE_MESSAGE;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_MAX_FETCH_RECORDS;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_MAX_FETCH_TIME;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_PARTITION_DISCOVERY_INTERVAL_MS;
+import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_READ_SCHEMA_EVOLUTION;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_READ_TRANSACTION_TIMEOUT;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_SUBSCRIPTION_MODE;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_SUBSCRIPTION_NAME;
@@ -54,8 +58,10 @@ public class SourceConfiguration extends PulsarConfiguration {
     private final int messageQueueCapacity;
     private final long partitionDiscoveryIntervalMs;
     private final boolean enableAutoAcknowledgeMessage;
+    private final boolean enableSchemaEvolution;
     private final long autoCommitCursorInterval;
     private final long transactionTimeoutMillis;
+    private final Duration defaultFetchTime;
     private final Duration maxFetchTime;
     private final int maxFetchRecords;
     private final CursorVerification verifyInitialOffsets;
@@ -70,8 +76,10 @@ public class SourceConfiguration extends PulsarConfiguration {
         this.messageQueueCapacity = getInteger(ELEMENT_QUEUE_CAPACITY);
         this.partitionDiscoveryIntervalMs = get(PULSAR_PARTITION_DISCOVERY_INTERVAL_MS);
         this.enableAutoAcknowledgeMessage = get(PULSAR_ENABLE_AUTO_ACKNOWLEDGE_MESSAGE);
+        this.enableSchemaEvolution = get(PULSAR_READ_SCHEMA_EVOLUTION);
         this.autoCommitCursorInterval = get(PULSAR_AUTO_COMMIT_CURSOR_INTERVAL);
         this.transactionTimeoutMillis = get(PULSAR_READ_TRANSACTION_TIMEOUT);
+        this.defaultFetchTime = get(PULSAR_DEFAULT_FETCH_TIME, Duration::ofMillis);
         this.maxFetchTime = get(PULSAR_MAX_FETCH_TIME, Duration::ofMillis);
         this.maxFetchRecords = get(PULSAR_MAX_FETCH_RECORDS);
         this.verifyInitialOffsets = get(PULSAR_VERIFY_INITIAL_OFFSETS);
@@ -115,6 +123,14 @@ public class SourceConfiguration extends PulsarConfiguration {
     }
 
     /**
+     * If we should deserialize the message with a specified Pulsar {@link Schema} instead the
+     * default {@link Schema#BYTES}. This switch is only used for {@link PulsarSchemaWrapper}.
+     */
+    public boolean isEnableSchemaEvolution() {
+        return enableSchemaEvolution;
+    }
+
+    /**
      * The interval in millis for acknowledge message when you enable {@link
      * #isEnableAutoAcknowledgeMessage} and use {@link SubscriptionType#Failover} or {@link
      * SubscriptionType#Exclusive} as your consuming subscription type.
@@ -132,6 +148,14 @@ public class SourceConfiguration extends PulsarConfiguration {
      */
     public long getTransactionTimeoutMillis() {
         return transactionTimeoutMillis;
+    }
+
+    /**
+     * The fetch time for polling one message. We would stop polling message and return the message
+     * in {@link RecordsWithSplitIds} when timeout and no message consumed.
+     */
+    public Duration getDefaultFetchTime() {
+        return defaultFetchTime;
     }
 
     /**
@@ -191,16 +215,6 @@ public class SourceConfiguration extends PulsarConfiguration {
         return allowKeySharedOutOfOrderDelivery;
     }
 
-    /** Convert the subscription into a readable str. */
-    public String getSubscriptionDesc() {
-        return getSubscriptionName()
-                + "("
-                + getSubscriptionType()
-                + ","
-                + getSubscriptionMode()
-                + ")";
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -217,8 +231,9 @@ public class SourceConfiguration extends PulsarConfiguration {
                 && enableAutoAcknowledgeMessage == that.enableAutoAcknowledgeMessage
                 && autoCommitCursorInterval == that.autoCommitCursorInterval
                 && transactionTimeoutMillis == that.transactionTimeoutMillis
-                && maxFetchRecords == that.maxFetchRecords
+                && Objects.equals(defaultFetchTime, that.defaultFetchTime)
                 && Objects.equals(maxFetchTime, that.maxFetchTime)
+                && maxFetchRecords == that.maxFetchRecords
                 && verifyInitialOffsets == that.verifyInitialOffsets
                 && Objects.equals(subscriptionName, that.subscriptionName)
                 && subscriptionType == that.subscriptionType
@@ -234,6 +249,7 @@ public class SourceConfiguration extends PulsarConfiguration {
                 enableAutoAcknowledgeMessage,
                 autoCommitCursorInterval,
                 transactionTimeoutMillis,
+                defaultFetchTime,
                 maxFetchTime,
                 maxFetchRecords,
                 verifyInitialOffsets,

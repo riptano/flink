@@ -30,21 +30,36 @@ import org.apache.flink.connector.pulsar.sink.writer.router.TopicRouter;
 import org.apache.flink.connector.pulsar.sink.writer.router.TopicRoutingMode;
 import org.apache.flink.connector.pulsar.sink.writer.serializer.PulsarSchemaWrapper;
 import org.apache.flink.connector.pulsar.sink.writer.serializer.PulsarSerializationSchema;
-import org.apache.flink.connector.pulsar.sink.writer.topic.TopicMetadataListener;
+import org.apache.flink.connector.pulsar.sink.writer.topic.TopicExtractor;
+import org.apache.flink.connector.pulsar.sink.writer.topic.TopicRegister;
+import org.apache.flink.connector.pulsar.sink.writer.topic.register.DynamicTopicRegister;
+import org.apache.flink.connector.pulsar.sink.writer.topic.register.EmptyTopicRegister;
+import org.apache.flink.connector.pulsar.sink.writer.topic.register.FixedTopicRegister;
 
+import org.apache.pulsar.client.api.CryptoKeyReader;
 import org.apache.pulsar.client.api.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_ADMIN_URL;
+import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PARAMS;
+import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PARAM_MAP;
+import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PLUGIN_CLASS_NAME;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_ENABLE_TRANSACTION;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_SERVICE_URL;
+import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_ENCRYPTION_KEYS;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_PRODUCER_NAME;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_SEND_TIMEOUT_MS;
+import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_SINK_DEFAULT_TOPIC_PARTITIONS;
+import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_SINK_TOPIC_AUTO_CREATION;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_WRITE_DELIVERY_GUARANTEE;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_WRITE_SCHEMA_EVOLUTION;
 import static org.apache.flink.connector.pulsar.sink.PulsarSinkOptions.PULSAR_WRITE_TRANSACTION_TIMEOUT;
@@ -99,10 +114,12 @@ public class PulsarSinkBuilder<IN> {
     private final PulsarConfigBuilder configBuilder;
 
     private PulsarSerializationSchema<IN> serializationSchema;
-    private TopicMetadataListener metadataListener;
+    private TopicRegister<IN> topicRegister;
     private TopicRoutingMode topicRoutingMode;
     private TopicRouter<IN> topicRouter;
     private MessageDelayer<IN> messageDelayer;
+    @Nullable private CryptoKeyReader cryptoKeyReader;
+    private final List<String> encryptionKeys = new ArrayList<>();
 
     // private builder constructor.
     PulsarSinkBuilder() {
@@ -159,10 +176,26 @@ public class PulsarSinkBuilder<IN> {
      * @return this PulsarSinkBuilder.
      */
     public PulsarSinkBuilder<IN> setTopics(List<String> topics) {
-        checkState(metadataListener == null, "setTopics couldn't be set twice.");
+        checkState(topicRegister == null, "setTopics couldn't be set twice.");
         // Making sure the topic should be distinct.
         List<String> topicSet = distinctTopics(topics);
-        this.metadataListener = new TopicMetadataListener(topicSet);
+        if (topicSet.isEmpty()) {
+            this.topicRegister = new EmptyTopicRegister<>();
+        } else {
+            this.topicRegister = new FixedTopicRegister<>(topicSet);
+        }
+        return this;
+    }
+
+    /**
+     * Set a dynamic topic extractor for extracting the topic information.
+     *
+     * @return this PulsarSinkBuilder.
+     */
+    public PulsarSinkBuilder<IN> setTopics(TopicExtractor<IN> extractor) {
+        checkState(topicRegister == null, "setTopics couldn't be set twice.");
+        this.topicRegister = new DynamicTopicRegister<>(extractor);
+
         return this;
     }
 
@@ -240,6 +273,85 @@ public class PulsarSinkBuilder<IN> {
      */
     public PulsarSinkBuilder<IN> delaySendingMessage(MessageDelayer<IN> messageDelayer) {
         this.messageDelayer = checkNotNull(messageDelayer);
+        return this;
+    }
+
+    /**
+     * Sets a {@link CryptoKeyReader}. Configure the key reader to be used to encrypt the message
+     * payloads.
+     *
+     * @param cryptoKeyReader CryptoKeyReader object.
+     * @return this PulsarSinkBuilder.
+     */
+    public PulsarSinkBuilder<IN> setCryptoKeyReader(CryptoKeyReader cryptoKeyReader) {
+        this.cryptoKeyReader = checkNotNull(cryptoKeyReader);
+        return this;
+    }
+
+    /**
+     * Add public encryption key, used by producer to encrypt the data key.
+     *
+     * <p>At the time of producer creation, Pulsar client checks if there are keys added to
+     * encryptionKeys. If keys are found, a callback {@link CryptoKeyReader#getPrivateKey(String,
+     * Map)} and {@link CryptoKeyReader#getPublicKey(String, Map)} is invoked against each key to
+     * load the values of the key. Application should implement this callback to return the key in
+     * pkcs8 format. If compression is enabled, message is encrypted after compression. If batch
+     * messaging is enabled, the batched message is encrypted.
+     *
+     * @param keys Encryption keys.
+     * @return this PulsarSinkBuilder.
+     */
+    public PulsarSinkBuilder<IN> setEncryptionKeys(String... keys) {
+        this.encryptionKeys.addAll(Arrays.asList(keys));
+        return this;
+    }
+
+    /**
+     * Pulsar sink disable the topic creation if the sink topic doesn't exist. You should explicitly
+     * set the default partition size for enabling topic creation. Make sure you have the authority
+     * on the given Pulsar admin token.
+     *
+     * @param partitionSize The partition size used on topic creation. It should be above to zero.
+     *     <ul>
+     *       <li>0: we would create a non-partitioned topic.
+     *       <li>above 0: we would create a partitioned topic with the given size.
+     *     </ul>
+     *
+     * @return this PulsarSinkBuilder.
+     */
+    public PulsarSinkBuilder<IN> enableTopicAutoCreation(int partitionSize) {
+        checkArgument(partitionSize >= 0);
+        configBuilder.set(PULSAR_SINK_TOPIC_AUTO_CREATION, true);
+        configBuilder.set(PULSAR_SINK_DEFAULT_TOPIC_PARTITIONS, partitionSize);
+        return this;
+    }
+
+    /**
+     * Configure the authentication provider to use in the Pulsar client instance.
+     *
+     * @param authPluginClassName name of the Authentication-Plugin you want to use
+     * @param authParamsString string which represents parameters for the Authentication-Plugin,
+     *     e.g., "key1:val1,key2:val2"
+     * @return this PulsarSinkBuilder.
+     */
+    public PulsarSinkBuilder<IN> setAuthentication(
+            String authPluginClassName, String authParamsString) {
+        configBuilder.set(PULSAR_AUTH_PLUGIN_CLASS_NAME, authPluginClassName);
+        configBuilder.set(PULSAR_AUTH_PARAMS, authParamsString);
+        return this;
+    }
+
+    /**
+     * Configure the authentication provider to use in the Pulsar client instance.
+     *
+     * @param authPluginClassName name of the Authentication-Plugin you want to use
+     * @param authParams map which represents parameters for the Authentication-Plugin
+     * @return this PulsarSinkBuilder.
+     */
+    public PulsarSinkBuilder<IN> setAuthentication(
+            String authPluginClassName, Map<String, String> authParams) {
+        configBuilder.set(PULSAR_AUTH_PLUGIN_CLASS_NAME, authPluginClassName);
+        configBuilder.set(PULSAR_AUTH_PARAM_MAP, authParams);
         return this;
     }
 
@@ -332,14 +444,14 @@ public class PulsarSinkBuilder<IN> {
         }
 
         // Topic metadata listener validation.
-        if (metadataListener == null) {
+        if (topicRegister == null) {
             if (topicRouter == null) {
                 throw new NullPointerException(
                         "No topic names or custom topic router are provided.");
             } else {
                 LOG.warn(
                         "No topic set has been provided, make sure your custom topic router support empty topic set.");
-                this.metadataListener = new TopicMetadataListener();
+                this.topicRegister = new EmptyTopicRegister<>();
             }
         }
 
@@ -353,6 +465,13 @@ public class PulsarSinkBuilder<IN> {
             this.messageDelayer = MessageDelayer.never();
         }
 
+        // Add the encryption keys if user provides one.
+        if (cryptoKeyReader != null) {
+            checkArgument(
+                    !encryptionKeys.isEmpty(), "You should provide at least on encryption key.");
+            configBuilder.set(PULSAR_ENCRYPTION_KEYS, encryptionKeys);
+        }
+
         // This is an unmodifiable configuration for Pulsar.
         // We don't use Pulsar's built-in configure classes for compatible requirement.
         SinkConfiguration sinkConfiguration =
@@ -361,10 +480,11 @@ public class PulsarSinkBuilder<IN> {
         return new PulsarSink<>(
                 sinkConfiguration,
                 serializationSchema,
-                metadataListener,
+                topicRegister,
                 topicRoutingMode,
                 topicRouter,
-                messageDelayer);
+                messageDelayer,
+                cryptoKeyReader);
     }
 
     // ------------- private helpers  --------------

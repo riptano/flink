@@ -24,6 +24,8 @@ import org.apache.flink.connector.pulsar.source.enumerator.cursor.StartCursor;
 import org.apache.pulsar.client.api.ConsumerBuilder;
 import org.apache.pulsar.client.api.MessageId;
 
+import java.util.Objects;
+
 import static org.apache.flink.connector.pulsar.source.enumerator.cursor.MessageIdUtils.nextMessageId;
 import static org.apache.flink.connector.pulsar.source.enumerator.cursor.MessageIdUtils.unwrapMessageId;
 
@@ -60,5 +62,22 @@ public class MessageIdStartCursor implements StartCursor {
     @Override
     public CursorPosition position(String topic, int partitionId) {
         return new CursorPosition(messageId);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        MessageIdStartCursor that = (MessageIdStartCursor) o;
+        return Objects.equals(messageId, that.messageId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(messageId);
     }
 }

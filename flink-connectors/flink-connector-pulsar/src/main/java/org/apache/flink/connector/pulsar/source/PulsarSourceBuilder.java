@@ -25,6 +25,7 @@ import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.pulsar.common.config.PulsarConfigBuilder;
 import org.apache.flink.connector.pulsar.common.config.PulsarOptions;
+import org.apache.flink.connector.pulsar.sink.writer.serializer.PulsarSchemaWrapper;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.StartCursor;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.StopCursor;
@@ -36,24 +37,32 @@ import org.apache.flink.connector.pulsar.source.enumerator.topic.range.RangeGene
 import org.apache.flink.connector.pulsar.source.enumerator.topic.range.SplitRangeGenerator;
 import org.apache.flink.connector.pulsar.source.reader.deserializer.PulsarDeserializationSchema;
 
+import org.apache.pulsar.client.api.CryptoKeyReader;
 import org.apache.pulsar.client.api.RegexSubscriptionMode;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
+
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
 import static java.lang.Boolean.FALSE;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_ADMIN_URL;
+import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PARAMS;
+import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PARAM_MAP;
+import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PLUGIN_CLASS_NAME;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_ENABLE_TRANSACTION;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_SERVICE_URL;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_CONSUMER_NAME;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_ENABLE_AUTO_ACKNOWLEDGE_MESSAGE;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_PARTITION_DISCOVERY_INTERVAL_MS;
+import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_READ_SCHEMA_EVOLUTION;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_READ_TRANSACTION_TIMEOUT;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_SUBSCRIPTION_NAME;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_SUBSCRIPTION_TYPE;
@@ -125,6 +134,7 @@ public final class PulsarSourceBuilder<OUT> {
     private StopCursor stopCursor;
     private Boundedness boundedness;
     private PulsarDeserializationSchema<OUT> deserializationSchema;
+    @Nullable private CryptoKeyReader cryptoKeyReader;
 
     // private builder constructor.
     PulsarSourceBuilder() {
@@ -211,6 +221,10 @@ public final class PulsarSourceBuilder<OUT> {
      * Set a topic pattern to consume from the java regex str. You can set topics once either with
      * {@link #setTopics} or {@link #setTopicPattern} in this builder.
      *
+     * <p>Remember that we will only subscribe to one tenant and one namespace by using regular
+     * expression. If you didn't provide the tenant and namespace in the given topic pattern. We
+     * will use default one instead.
+     *
      * @param topicsPattern the pattern of the topic name to consume from.
      * @return this PulsarSourceBuilder.
      */
@@ -221,6 +235,10 @@ public final class PulsarSourceBuilder<OUT> {
     /**
      * Set a topic pattern to consume from the java {@link Pattern}. You can set topics once either
      * with {@link #setTopics} or {@link #setTopicPattern} in this builder.
+     *
+     * <p>Remember that we will only subscribe to one tenant and one namespace by using regular
+     * expression. If you didn't provide the tenant and namespace in the given topic pattern. We
+     * will use default one instead.
      *
      * @param topicsPattern the pattern of the topic name to consume from.
      * @return this PulsarSourceBuilder.
@@ -233,8 +251,19 @@ public final class PulsarSourceBuilder<OUT> {
      * Set a topic pattern to consume from the java regex str. You can set topics once either with
      * {@link #setTopics} or {@link #setTopicPattern} in this builder.
      *
+     * <p>Remember that we will only subscribe to one tenant and one namespace by using regular
+     * expression. If you didn't provide the tenant and namespace in the given topic pattern. We
+     * will use default one instead.
+     *
      * @param topicsPattern the pattern of the topic name to consume from.
-     * @param regexSubscriptionMode The topic filter for regex subscription.
+     * @param regexSubscriptionMode When subscribing to a topic using a regular expression, you can
+     *     pick a certain type of topics.
+     *     <ul>
+     *       <li>PersistentOnly: only subscribe to persistent topics.
+     *       <li>NonPersistentOnly: only subscribe to non-persistent topics.
+     *       <li>AllTopics: subscribe to both persistent and non-persistent topics.
+     *     </ul>
+     *
      * @return this PulsarSourceBuilder.
      */
     public PulsarSourceBuilder<OUT> setTopicPattern(
@@ -245,6 +274,10 @@ public final class PulsarSourceBuilder<OUT> {
     /**
      * Set a topic pattern to consume from the java {@link Pattern}. You can set topics once either
      * with {@link #setTopics} or {@link #setTopicPattern} in this builder.
+     *
+     * <p>Remember that we will only subscribe to one tenant and one namespace by using regular
+     * expression. If you didn't provide the tenant and namespace in the given topic pattern. We
+     * will use default one instead.
      *
      * @param topicsPattern the pattern of the topic name to consume from.
      * @param regexSubscriptionMode When subscribing to a topic using a regular expression, you can
@@ -271,6 +304,15 @@ public final class PulsarSourceBuilder<OUT> {
      */
     public PulsarSourceBuilder<OUT> setConsumerName(String consumerName) {
         return setConfig(PULSAR_CONSUMER_NAME, consumerName);
+    }
+
+    /**
+     * If you enable this option, we would consume and deserialize the message by using Pulsar
+     * {@link Schema}.
+     */
+    public PulsarSourceBuilder<OUT> enableSchemaEvolution() {
+        configBuilder.set(PULSAR_READ_SCHEMA_EVOLUTION, true);
+        return this;
     }
 
     /**
@@ -367,6 +409,47 @@ public final class PulsarSourceBuilder<OUT> {
         PulsarSourceBuilder<T> self = specialized();
         self.deserializationSchema = deserializationSchema;
         return self;
+    }
+
+    /**
+     * Configure the authentication provider to use in the Pulsar client instance.
+     *
+     * @param authPluginClassName name of the Authentication-Plugin you want to use
+     * @param authParamsString string which represents parameters for the Authentication-Plugin,
+     *     e.g., "key1:val1,key2:val2"
+     * @return this PulsarSourceBuilder.
+     */
+    public PulsarSourceBuilder<OUT> setAuthentication(
+            String authPluginClassName, String authParamsString) {
+        configBuilder.set(PULSAR_AUTH_PLUGIN_CLASS_NAME, authPluginClassName);
+        configBuilder.set(PULSAR_AUTH_PARAMS, authParamsString);
+        return this;
+    }
+
+    /**
+     * Configure the authentication provider to use in the Pulsar client instance.
+     *
+     * @param authPluginClassName name of the Authentication-Plugin you want to use
+     * @param authParams map which represents parameters for the Authentication-Plugin
+     * @return this PulsarSourceBuilder.
+     */
+    public PulsarSourceBuilder<OUT> setAuthentication(
+            String authPluginClassName, Map<String, String> authParams) {
+        configBuilder.set(PULSAR_AUTH_PLUGIN_CLASS_NAME, authPluginClassName);
+        configBuilder.set(PULSAR_AUTH_PARAM_MAP, authParams);
+        return this;
+    }
+
+    /**
+     * Sets a {@link CryptoKeyReader}. Configure the key reader to be used to decrypt the message
+     * payloads.
+     *
+     * @param cryptoKeyReader CryptoKeyReader object
+     * @return this PulsarSourceBuilder.
+     */
+    public PulsarSourceBuilder<OUT> setCryptoKeyReader(CryptoKeyReader cryptoKeyReader) {
+        this.cryptoKeyReader = checkNotNull(cryptoKeyReader);
+        return this;
     }
 
     /**
@@ -470,6 +553,18 @@ public final class PulsarSourceBuilder<OUT> {
             }
         }
 
+        // Schema evolution validation.
+        if (Boolean.TRUE.equals(configBuilder.get(PULSAR_READ_SCHEMA_EVOLUTION))) {
+            checkState(
+                    deserializationSchema instanceof PulsarSchemaWrapper,
+                    "When enabling schema evolution, you must provide a Pulsar Schema in PulsarDeserializationSchema.");
+        } else if (deserializationSchema instanceof PulsarSchemaWrapper) {
+            LOG.info(
+                    "It seems like you want to read message using Pulsar Schema."
+                            + " You can enableSchemaEvolution for using this feature."
+                            + " We would use Schema.BYTES as the default schema if you don't enable this option.");
+        }
+
         if (!configBuilder.contains(PULSAR_CONSUMER_NAME)) {
             LOG.warn(
                     "We recommend set a readable consumer name through setConsumerName(String) in production mode.");
@@ -496,7 +591,8 @@ public final class PulsarSourceBuilder<OUT> {
                 startCursor,
                 stopCursor,
                 boundedness,
-                deserializationSchema);
+                deserializationSchema,
+                cryptoKeyReader);
     }
 
     // ------------- private helpers  --------------

@@ -66,7 +66,9 @@ public class PulsarSinkTestContext extends PulsarTestContext<String>
 
     @Override
     public Sink<String> createSink(TestingSinkSettings sinkSettings) {
-        operator.createTopic(topicName, 4);
+        if (!operator.topicExists(topicName)) {
+            operator.createTopic(topicName, 4);
+        }
         DeliveryGuarantee guarantee = toDeliveryGuarantee(sinkSettings.getCheckpointingMode());
 
         return PulsarSink.builder()
@@ -74,7 +76,7 @@ public class PulsarSinkTestContext extends PulsarTestContext<String>
                 .setAdminUrl(operator.adminUrl())
                 .setTopics(topicName)
                 .setDeliveryGuarantee(guarantee)
-                .setSerializationSchema(pulsarSchema(schema))
+                .setSerializationSchema(pulsarSchema(Schema.STRING))
                 .enableSchemaEvolution()
                 .setConfig(PULSAR_BATCHING_MAX_MESSAGES, 4)
                 .build();

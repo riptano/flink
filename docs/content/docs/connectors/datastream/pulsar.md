@@ -252,6 +252,21 @@ you can use the predefined `PulsarDeserializationSchema`. Pulsar connector provi
   ```
   {{< /tab >}}
   {{< /tabs >}}
+If using KeyValue type or Struct types, the pulsar `Schema` does not contain type class info which is 
+needed by `PulsarSchemaTypeInformation`. So the two APIs provides 2 parameter to pass the type info.
+
+A example would be:
+
+```java
+  // Primitive types: do not need to provide type class info
+  PulsarDeserializationSchema.pulsarSchema(Schema.INT32);
+
+  // Struct types (JSON, Protobuf, Avro, etc.)
+  PulsarDeserializationSchema.pulsarSchema(Schema.AVRO(SomeClass), SomeClass.class);
+
+  // KeyValue type
+  PulsarDeserializationSchema.pulsarSchema(Schema.KeyValue(Schema.INT32, Schema.AVRO(SomeClass)), Integer.class, SomeClass.class);
+```
 
 Pulsar `Message<byte[]>` contains some [extra properties](https://pulsar.apache.org/docs/en/concepts-messaging/#messages),
 such as message key, message publish time, message time, and application-defined key/value pairs etc.
@@ -414,7 +429,7 @@ You can use `StartCursor.fromPublishTime(long)` instead.
   {{< tabs "pulsar-starting-position-message-time" >}}
   {{< tab "Java" >}}
   ```java
-  StartCursor.fromMessageTime(long);
+  StartCursor.fromPublishTime(long);
   ```
   {{< /tab >}}
   {{< tab "Python" >}}
@@ -831,6 +846,18 @@ If you build the Pulsar sink based on both the topic and its corresponding parti
 For example, when using the `PulsarSink.builder().setTopics("some-topic1", "some-topic1-partition-0")` option to build the Pulsar sink,
 this is simplified to `PulsarSink.builder().setTopics("some-topic1")`.
 {{< /hint >}}
+
+#### Dynamic Topics by income messages
+
+Topics could be defined by the message content instead of providing the fix topic set. You can dynamically
+provide the topic by implementing `TopicExtractor`. The topic metadata in `TopicExtractor` can be queried
+by using `TopicMetadataProvider` and the query result would be expired after we have queried for
+`PulsarSinkOptions.PULSAR_TOPIC_METADATA_REFRESH_INTERVAL` time.
+
+You can return two types of value in `TopicExtractor`. A topic name with or without partition information.
+
+1. If you don't want to provide the partition, we would query the partition size and passing all the partitions to `TopicRouter`. The partition size would be cached in `PulsarSinkOptions.PULSAR_TOPIC_METADATA_REFRESH_INTERVAL`.
+2. If you provided the topic partition, we would do nothing but just pass it to downstream.
 
 ### Serializer
 

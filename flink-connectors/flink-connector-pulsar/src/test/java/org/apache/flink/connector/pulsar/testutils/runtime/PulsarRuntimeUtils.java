@@ -60,6 +60,7 @@ public final class PulsarRuntimeUtils {
             // Create Pulsar system namespace
             createNameSpace(
                     admin, cluster, SYSTEM_NAMESPACE.getTenant(), SYSTEM_NAMESPACE.toString());
+
             // Enable transaction
             if (config.isTransactionCoordinatorEnabled()
                     && !admin.namespaces()

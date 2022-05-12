@@ -33,22 +33,26 @@ import org.apache.flink.connector.pulsar.sink.writer.delayer.MessageDelayer;
 import org.apache.flink.connector.pulsar.sink.writer.message.PulsarMessage;
 import org.apache.flink.connector.pulsar.sink.writer.router.TopicRouter;
 import org.apache.flink.connector.pulsar.sink.writer.serializer.PulsarSerializationSchema;
-import org.apache.flink.connector.pulsar.sink.writer.topic.TopicMetadataListener;
-import org.apache.flink.connector.pulsar.sink.writer.topic.TopicProducerRegister;
+import org.apache.flink.connector.pulsar.sink.writer.topic.ProducerRegister;
+import org.apache.flink.connector.pulsar.sink.writer.topic.TopicRegister;
 import org.apache.flink.util.FlinkRuntimeException;
 
 import org.apache.flink.shaded.guava30.com.google.common.base.Strings;
 
+import org.apache.pulsar.client.api.CryptoKeyReader;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
+
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyList;
 import static org.apache.flink.util.IOUtils.closeAll;
@@ -64,17 +68,15 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class PulsarWriter<IN> implements PrecommittingSinkWriter<IN, PulsarCommittable> {
     private static final Logger LOG = LoggerFactory.getLogger(PulsarWriter.class);
 
-    private final SinkConfiguration sinkConfiguration;
     private final PulsarSerializationSchema<IN> serializationSchema;
-    private final TopicMetadataListener metadataListener;
+    private final TopicRegister<IN> topicRegister;
     private final TopicRouter<IN> topicRouter;
     private final MessageDelayer<IN> messageDelayer;
     private final DeliveryGuarantee deliveryGuarantee;
     private final PulsarSinkContext sinkContext;
+    private final ProducerRegister producerRegister;
+    private final AtomicLong pendingMessages = new AtomicLong(0);
     private final MailboxExecutor mailboxExecutor;
-    private final TopicProducerRegister producerRegister;
-
-    private long pendingMessages = 0;
 
     /**
      * Constructor creating a Pulsar writer.
@@ -85,32 +87,32 @@ public class PulsarWriter<IN> implements PrecommittingSinkWriter<IN, PulsarCommi
      *
      * @param sinkConfiguration The configuration to configure the Pulsar producer.
      * @param serializationSchema Transform the incoming records into different message properties.
-     * @param metadataListener The listener for querying topic metadata.
+     * @param topicRegister The listener for querying topic metadata.
      * @param topicRouter Topic router to choose topic by incoming records.
      * @param initContext Context to provide information about the runtime environment.
      */
     public PulsarWriter(
             SinkConfiguration sinkConfiguration,
             PulsarSerializationSchema<IN> serializationSchema,
-            TopicMetadataListener metadataListener,
+            TopicRegister<IN> topicRegister,
             TopicRouter<IN> topicRouter,
             MessageDelayer<IN> messageDelayer,
+            @Nullable CryptoKeyReader cryptoKeyReader,
             InitContext initContext) {
-        this.sinkConfiguration = checkNotNull(sinkConfiguration);
+        checkNotNull(sinkConfiguration);
         this.serializationSchema = checkNotNull(serializationSchema);
-        this.metadataListener = checkNotNull(metadataListener);
+        this.topicRegister = checkNotNull(topicRegister);
         this.topicRouter = checkNotNull(topicRouter);
         this.messageDelayer = checkNotNull(messageDelayer);
         checkNotNull(initContext);
 
         this.deliveryGuarantee = sinkConfiguration.getDeliveryGuarantee();
         this.sinkContext = new PulsarSinkContextImpl(initContext, sinkConfiguration);
-        this.mailboxExecutor = initContext.getMailboxExecutor();
 
         // Initialize topic metadata listener.
         LOG.debug("Initialize topic metadata after creating Pulsar writer.");
         ProcessingTimeService timeService = initContext.getProcessingTimeService();
-        this.metadataListener.open(sinkConfiguration, timeService);
+        this.topicRegister.open(sinkConfiguration, timeService);
 
         // Initialize topic router.
         this.topicRouter.open(sinkConfiguration);
@@ -125,7 +127,8 @@ public class PulsarWriter<IN> implements PrecommittingSinkWriter<IN, PulsarCommi
         }
 
         // Create this producer register after opening serialization schema!
-        this.producerRegister = new TopicProducerRegister(sinkConfiguration);
+        this.producerRegister = new ProducerRegister(sinkConfiguration, cryptoKeyReader);
+        this.mailboxExecutor = initContext.getMailboxExecutor();
     }
 
     @Override
@@ -133,9 +136,17 @@ public class PulsarWriter<IN> implements PrecommittingSinkWriter<IN, PulsarCommi
         PulsarMessage<?> message = serializationSchema.serialize(element, sinkContext);
 
         // Choose the right topic to send.
-        String key = message.getKey();
-        List<String> availableTopics = metadataListener.availableTopics();
-        String topic = topicRouter.route(element, key, availableTopics, sinkContext);
+        List<String> topics = topicRegister.topics(element);
+
+        // TODO if both keyBytes and key are set, use keyBytes. This is a temporary solution.
+        String keyString;
+        if (message.getKeyBytes() == null) {
+            keyString = message.getKey();
+        } else {
+            keyString = Base64.getEncoder().encodeToString(message.getKeyBytes());
+        }
+
+        String topic = topicRouter.route(element, keyString, topics, sinkContext);
 
         // Create message builder for sending message.
         TypedMessageBuilder<?> builder = createMessageBuilder(topic, context, message);
@@ -151,42 +162,28 @@ public class PulsarWriter<IN> implements PrecommittingSinkWriter<IN, PulsarCommi
             // We would just ignore the sending exception. This may cause data loss.
             builder.sendAsync();
         } else {
-            // Waiting for permits to write message.
-            requirePermits();
-            mailboxExecutor.execute(
-                    () -> enqueueMessageSending(topic, builder),
-                    "Failed to send message to Pulsar");
+            // Increase the pending message count.
+            pendingMessages.incrementAndGet();
+            builder.sendAsync()
+                    .whenComplete(
+                            (id, ex) -> {
+                                pendingMessages.decrementAndGet();
+                                if (ex != null) {
+                                    mailboxExecutor.execute(
+                                            () -> {
+                                                throw new FlinkRuntimeException(
+                                                        "Failed to send data to Pulsar " + topic,
+                                                        ex);
+                                            },
+                                            "Failed to send data to Pulsar");
+                                } else {
+                                    LOG.debug(
+                                            "Sent message to Pulsar {} with message id {}",
+                                            topic,
+                                            id);
+                                }
+                            });
         }
-    }
-
-    private void enqueueMessageSending(String topic, TypedMessageBuilder<?> builder)
-            throws ExecutionException, InterruptedException {
-        // Block the mailbox executor for yield method.
-        builder.sendAsync()
-                .whenComplete(
-                        (id, ex) -> {
-                            this.releasePermits();
-                            if (ex != null) {
-                                throw new FlinkRuntimeException(
-                                        "Failed to send data to Pulsar " + topic, ex);
-                            } else {
-                                LOG.debug(
-                                        "Sent message to Pulsar {} with message id {}", topic, id);
-                            }
-                        })
-                .get();
-    }
-
-    private void requirePermits() throws InterruptedException {
-        while (pendingMessages >= sinkConfiguration.getMaxPendingMessages()) {
-            LOG.info("Waiting for the available permits.");
-            mailboxExecutor.yield();
-        }
-        pendingMessages++;
-    }
-
-    private void releasePermits() {
-        this.pendingMessages -= 1;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -204,6 +201,11 @@ public class PulsarWriter<IN> implements PrecommittingSinkWriter<IN, PulsarCommi
         String key = message.getKey();
         if (!Strings.isNullOrEmpty(key)) {
             builder.key(key);
+        }
+
+        byte[] keyBytes = message.getKeyBytes();
+        if (keyBytes != null) {
+            builder.keyBytes(keyBytes);
         }
 
         long eventTime = message.getEventTime();
@@ -244,15 +246,15 @@ public class PulsarWriter<IN> implements PrecommittingSinkWriter<IN, PulsarCommi
     }
 
     @Override
-    public void flush(boolean endOfInput) throws IOException, InterruptedException {
-        if (endOfInput) {
-            // Try flush only once when we meet the end of the input.
+    public void flush(boolean endOfInput) throws IOException {
+        if (endOfInput || deliveryGuarantee != DeliveryGuarantee.NONE) {
+            LOG.info("Flush the pending messages to Pulsar.");
+
+            // Try to flush pending messages.
             producerRegister.flush();
-        } else {
-            while (pendingMessages != 0 && deliveryGuarantee != DeliveryGuarantee.NONE) {
+            // Make sure all the pending messages should be flushed to Pulsar.
+            while (pendingMessages.longValue() > 0) {
                 producerRegister.flush();
-                LOG.info("Flush the pending messages to Pulsar.");
-                mailboxExecutor.yield();
             }
         }
     }
@@ -269,6 +271,6 @@ public class PulsarWriter<IN> implements PrecommittingSinkWriter<IN, PulsarCommi
     @Override
     public void close() throws Exception {
         // Close all the resources and throw the exception at last.
-        closeAll(metadataListener, producerRegister);
+        closeAll(topicRegister, producerRegister);
     }
 }

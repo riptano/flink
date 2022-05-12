@@ -29,20 +29,17 @@ import org.apache.flink.connector.testframe.junit.annotations.TestSemantics;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.tests.util.pulsar.common.FlinkContainerWithPulsarEnvironment;
 import org.apache.flink.tests.util.pulsar.common.PulsarContainerTestEnvironment;
+import org.apache.flink.testutils.junit.FailsOnJava11;
 
-import org.junit.jupiter.api.Tag;
+import org.junit.experimental.categories.Category;
 
 /**
  * Pulsar E2E test based on connector testing framework. It's used for Shared & Key_Shared
  * subscription.
  */
 @SuppressWarnings("unused")
-@Tag("org.apache.flink.testutils.junit.FailsOnJava11")
+@Category(value = {FailsOnJava11.class})
 public class PulsarSourceUnorderedE2ECase extends UnorderedSourceTestSuiteBase<String> {
-
-    // Defines the Semantic.
-    @TestSemantics
-    CheckpointingMode[] semantics = new CheckpointingMode[] {CheckpointingMode.EXACTLY_ONCE};
 
     // Defines TestEnvironment.
     @TestEnv
@@ -51,6 +48,10 @@ public class PulsarSourceUnorderedE2ECase extends UnorderedSourceTestSuiteBase<S
     // Defines ConnectorExternalSystem.
     @TestExternalSystem
     PulsarContainerTestEnvironment pulsar = new PulsarContainerTestEnvironment(flink);
+
+    // Defines the Semantic.
+    @TestSemantics
+    CheckpointingMode[] semantics = new CheckpointingMode[] {CheckpointingMode.EXACTLY_ONCE};
 
     // Defines a set of external context Factories for different test cases.
     @TestContext

@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package org.apache.flink.connector.pulsar;
+
+message Circle {
+  Circle field = 1;
+}
+
+

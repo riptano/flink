@@ -31,6 +31,8 @@ import org.junit.jupiter.api.extension.ParameterContext;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
+
 /** Put static methods that can be used by multiple test classes. */
 public class PulsarTestCommonUtils {
 
@@ -58,7 +60,9 @@ public class PulsarTestCommonUtils {
 
     public static PulsarPartitionSplit createPartitionSplit(
             String topic, int partitionId, Boundedness boundedness, MessageId latestConsumedId) {
-        TopicPartition topicPartition = new TopicPartition(topic, partitionId);
+        TopicPartition topicPartition =
+                new TopicPartition(topic, partitionId, singletonList(TopicRange.createFullRange()));
+
         StopCursor stopCursor =
                 boundedness == Boundedness.BOUNDED ? StopCursor.latest() : StopCursor.never();
         return new PulsarPartitionSplit(topicPartition, stopCursor, latestConsumedId, null);

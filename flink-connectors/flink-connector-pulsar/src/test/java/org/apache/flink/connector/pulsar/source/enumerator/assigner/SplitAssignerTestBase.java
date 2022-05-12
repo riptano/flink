@@ -40,6 +40,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.apache.flink.connector.pulsar.source.enumerator.PulsarSourceEnumState.initialState;
 import static org.apache.flink.connector.pulsar.source.enumerator.cursor.StopCursor.defaultStopCursor;
+import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicRange.createFullRange;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Test utils for split assigners. */
@@ -92,7 +93,8 @@ abstract class SplitAssignerTestBase extends TestLogger {
     }
 
     protected Set<TopicPartition> createPartitions(String topic, int partitionId) {
-        TopicPartition p1 = new TopicPartition(topic, partitionId);
+        TopicPartition p1 =
+                new TopicPartition(topic, partitionId, singletonList(createFullRange()));
         return singleton(p1);
     }
 

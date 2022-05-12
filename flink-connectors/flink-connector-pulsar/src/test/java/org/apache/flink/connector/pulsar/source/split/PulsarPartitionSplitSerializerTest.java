@@ -43,10 +43,7 @@ class PulsarPartitionSplitSerializerTest {
         PulsarPartitionSplit split =
                 new PulsarPartitionSplit(
                         new TopicPartition(
-                                randomAlphabetic(10),
-                                10,
-                                singletonList(new TopicRange(400, 5000)),
-                                JOIN),
+                                randomAlphabetic(10), 10, singletonList(createFullRange())),
                         StopCursor.defaultStopCursor());
 
         byte[] bytes = INSTANCE.serialize(split);

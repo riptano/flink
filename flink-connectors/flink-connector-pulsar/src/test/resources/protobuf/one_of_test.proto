@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package org.apache.flink.connector.pulsar;
+
+message Foo{
+  string message_id = 1;
+  oneof update {
+    Bar1 bar1 = 2;
+    Bar2 bar2 = 3;
+  }
+}
+
+message Bar1 {
+  string field1 = 1;
+}
+
+message Bar2 {
+  string field2 = 1;
+}
+

@@ -19,18 +19,19 @@
 package org.apache.flink.connector.pulsar.testutils.source.cases;
 
 import org.apache.flink.connector.pulsar.source.PulsarSourceBuilder;
-import org.apache.flink.connector.pulsar.source.enumerator.topic.range.FixedKeysRangeGenerator;
+import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicRange;
+import org.apache.flink.connector.pulsar.source.enumerator.topic.range.FixedRangeGenerator;
 import org.apache.flink.connector.pulsar.testutils.PulsarTestEnvironment;
 import org.apache.flink.connector.pulsar.testutils.source.KeyedPulsarPartitionDataWriter;
 import org.apache.flink.connector.testframe.external.ExternalSystemSplitDataWriter;
 import org.apache.flink.connector.testframe.external.source.TestingSourceSettings;
 
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.common.util.Murmur3_32Hash;
 
+import static java.util.Collections.singletonList;
 import static org.apache.commons.lang3.RandomStringUtils.randomAlphabetic;
-import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_ALLOW_KEY_SHARED_OUT_OF_ORDER_DELIVERY;
-import static org.apache.flink.connector.pulsar.source.enumerator.topic.range.RangeGenerator.KeySharedMode.JOIN;
-import static org.apache.flink.connector.pulsar.source.enumerator.topic.range.TopicRangeUtils.keyHash;
+import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicRange.RANGE_SIZE;
 
 /** We would consume from test splits by using {@link SubscriptionType#Key_Shared} subscription. */
 public class KeySharedSubscriptionContext extends MultipleTopicConsumingContext {
@@ -66,11 +67,10 @@ public class KeySharedSubscriptionContext extends MultipleTopicConsumingContext 
 
     @Override
     protected void setSourceBuilder(PulsarSourceBuilder<String> builder) {
-        // Make sure we only consume the messages with keyToRead.
-        FixedKeysRangeGenerator generator =
-                FixedKeysRangeGenerator.builder().key(keyToRead).keySharedMode(JOIN).build();
-        builder.setRangeGenerator(generator);
-        builder.setConfig(PULSAR_ALLOW_KEY_SHARED_OUT_OF_ORDER_DELIVERY, true);
+        int keyHash = keyHash(keyToRead);
+        TopicRange range = new TopicRange(keyHash, keyHash);
+
+        builder.setRangeGenerator(new FixedRangeGenerator(singletonList(range)));
     }
 
     @Override
@@ -81,5 +81,10 @@ public class KeySharedSubscriptionContext extends MultipleTopicConsumingContext 
     @Override
     protected SubscriptionType subscriptionType() {
         return SubscriptionType.Key_Shared;
+    }
+
+    // This method is copied from Pulsar for calculating message key hash.
+    private int keyHash(String key) {
+        return Murmur3_32Hash.getInstance().makeHash(key.getBytes()) % RANGE_SIZE;
     }
 }

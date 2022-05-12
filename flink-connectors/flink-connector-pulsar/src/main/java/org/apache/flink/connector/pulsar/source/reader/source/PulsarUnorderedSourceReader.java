@@ -22,14 +22,15 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.synchronization.FutureCompletingBlockingQueue;
+import org.apache.flink.connector.pulsar.common.request.PulsarAdminRequest;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
+import org.apache.flink.connector.pulsar.source.reader.emitter.PulsarRecordEmitter;
 import org.apache.flink.connector.pulsar.source.reader.fetcher.PulsarUnorderedFetcherManager;
-import org.apache.flink.connector.pulsar.source.reader.message.PulsarMessage;
 import org.apache.flink.connector.pulsar.source.reader.split.PulsarUnorderedPartitionSplitReader;
 import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplit;
 import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplitState;
 
-import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClient;
 import org.apache.pulsar.client.api.transaction.TxnID;
@@ -63,20 +64,22 @@ public class PulsarUnorderedSourceReader<OUT> extends PulsarSourceReaderBase<OUT
     private boolean started = false;
 
     public PulsarUnorderedSourceReader(
-            FutureCompletingBlockingQueue<RecordsWithSplitIds<PulsarMessage<OUT>>> elementsQueue,
-            Supplier<PulsarUnorderedPartitionSplitReader<OUT>> splitReaderSupplier,
+            FutureCompletingBlockingQueue<RecordsWithSplitIds<Message<byte[]>>> elementsQueue,
+            Supplier<PulsarUnorderedPartitionSplitReader> splitReaderSupplier,
+            PulsarRecordEmitter<OUT> recordEmitter,
             SourceReaderContext context,
             SourceConfiguration sourceConfiguration,
             PulsarClient pulsarClient,
-            PulsarAdmin pulsarAdmin,
+            PulsarAdminRequest adminRequest,
             @Nullable TransactionCoordinatorClient coordinatorClient) {
         super(
                 elementsQueue,
-                new PulsarUnorderedFetcherManager<>(elementsQueue, splitReaderSupplier::get),
+                new PulsarUnorderedFetcherManager(elementsQueue, splitReaderSupplier::get),
+                recordEmitter,
                 context,
                 sourceConfiguration,
                 pulsarClient,
-                pulsarAdmin);
+                adminRequest);
 
         this.coordinatorClient = coordinatorClient;
         this.transactionsToCommit = Collections.synchronizedSortedMap(new TreeMap<>());
@@ -117,6 +120,9 @@ public class PulsarUnorderedSourceReader<OUT> extends PulsarSourceReaderBase<OUT
 
     @Override
     protected void onSplitFinished(Map<String, PulsarPartitionSplitState> finishedSplitIds) {
+        // Close all the finished splits.
+        closeFinishedSplits(finishedSplitIds.keySet());
+
         // We don't require new splits, all the splits are pre-assigned by source enumerator.
         if (LOG.isDebugEnabled()) {
             LOG.debug("onSplitFinished event: {}", finishedSplitIds);
@@ -138,7 +144,7 @@ public class PulsarUnorderedSourceReader<OUT> extends PulsarSourceReaderBase<OUT
     public List<PulsarPartitionSplit> snapshotState(long checkpointId) {
         LOG.debug("Trigger the new transaction for downstream readers.");
         List<PulsarPartitionSplit> splits =
-                ((PulsarUnorderedFetcherManager<OUT>) splitFetcherManager).snapshotState();
+                ((PulsarUnorderedFetcherManager) splitFetcherManager).snapshotState(checkpointId);
 
         if (coordinatorClient != null) {
             // Snapshot the transaction status and commit it after checkpoint finishing.
@@ -150,6 +156,11 @@ public class PulsarUnorderedSourceReader<OUT> extends PulsarSourceReaderBase<OUT
                     txnIDs.add(uncommittedTransactionId);
                 }
             }
+
+            // Add finished splits' transactions.
+            txnIDs.addAll(transactionsOfFinishedSplits);
+            // Purge the transactions.
+            transactionsOfFinishedSplits.clear();
         }
 
         return splits;
@@ -170,10 +181,28 @@ public class PulsarUnorderedSourceReader<OUT> extends PulsarSourceReaderBase<OUT
                 if (transactions != null) {
                     for (TxnID transaction : transactions) {
                         coordinatorClient.commit(transaction);
-                        transactionsOfFinishedSplits.remove(transaction);
                     }
                 }
             }
         }
+    }
+
+    @Override
+    public void close() throws Exception {
+        // Abort all the pending transactions.
+        if (coordinatorClient != null) {
+            for (List<TxnID> transactions : transactionsToCommit.values()) {
+                for (TxnID transaction : transactions) {
+                    try {
+                        coordinatorClient.abort(transaction);
+                    } catch (Exception e) {
+                        LOG.warn("Error in aborting transaction {}", transaction, e);
+                    }
+                }
+            }
+        }
+
+        // Close the pulsar client finally.
+        super.close();
     }
 }

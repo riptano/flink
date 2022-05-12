@@ -47,6 +47,7 @@ public final class TopicMetadata {
         return name;
     }
 
+    /** If this topic name contains sub-partitions. */
     public boolean isPartitioned() {
         return partitionSize != NON_PARTITIONED;
     }

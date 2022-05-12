@@ -38,7 +38,7 @@ public final class PulsarExceptionUtils {
 
     public static <R extends PulsarClientException> void sneakyClient(
             ThrowingRunnable<R> runnable) {
-        sneaky(runnable);
+        sneaky(voidSupplier(runnable));
     }
 
     public static <T, R extends PulsarClientException> T sneakyClient(
@@ -47,20 +47,12 @@ public final class PulsarExceptionUtils {
     }
 
     public static <R extends PulsarAdminException> void sneakyAdmin(ThrowingRunnable<R> runnable) {
-        sneaky(runnable);
+        sneaky(voidSupplier(runnable));
     }
 
     public static <T, R extends PulsarAdminException> T sneakyAdmin(
             SupplierWithException<T, R> supplier) {
         return sneaky(supplier);
-    }
-
-    private static <R extends Exception> void sneaky(ThrowingRunnable<R> runnable) {
-        try {
-            runnable.run();
-        } catch (Exception r) {
-            sneakyThrow(r);
-        }
     }
 
     /** Catch the throwable exception and rethrow it without try catch. */
@@ -79,5 +71,14 @@ public final class PulsarExceptionUtils {
     @SuppressWarnings("unchecked")
     public static <T extends Exception> void sneakyThrow(Exception t) throws T {
         throw (T) t;
+    }
+
+    /** Convert a ThrowingRunnable into a SupplierWithException which returns nothing. */
+    public static <R extends Exception> SupplierWithException<Void, R> voidSupplier(
+            ThrowingRunnable<R> runnable) {
+        return () -> {
+            runnable.run();
+            return null;
+        };
     }
 }

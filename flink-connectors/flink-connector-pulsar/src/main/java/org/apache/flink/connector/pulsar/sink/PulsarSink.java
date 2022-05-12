@@ -34,8 +34,12 @@ import org.apache.flink.connector.pulsar.sink.writer.router.RoundRobinTopicRoute
 import org.apache.flink.connector.pulsar.sink.writer.router.TopicRouter;
 import org.apache.flink.connector.pulsar.sink.writer.router.TopicRoutingMode;
 import org.apache.flink.connector.pulsar.sink.writer.serializer.PulsarSerializationSchema;
-import org.apache.flink.connector.pulsar.sink.writer.topic.TopicMetadataListener;
+import org.apache.flink.connector.pulsar.sink.writer.topic.TopicRegister;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
+
+import org.apache.pulsar.client.api.CryptoKeyReader;
+
+import javax.annotation.Nullable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -82,21 +86,25 @@ public class PulsarSink<IN> implements TwoPhaseCommittingSink<IN, PulsarCommitta
 
     private final SinkConfiguration sinkConfiguration;
     private final PulsarSerializationSchema<IN> serializationSchema;
-    private final TopicMetadataListener metadataListener;
+    private final TopicRegister<IN> topicRegister;
     private final MessageDelayer<IN> messageDelayer;
     private final TopicRouter<IN> topicRouter;
+
+    @Nullable private final CryptoKeyReader cryptoKeyReader;
 
     PulsarSink(
             SinkConfiguration sinkConfiguration,
             PulsarSerializationSchema<IN> serializationSchema,
-            TopicMetadataListener metadataListener,
+            TopicRegister<IN> topicRegister,
             TopicRoutingMode topicRoutingMode,
             TopicRouter<IN> topicRouter,
-            MessageDelayer<IN> messageDelayer) {
+            MessageDelayer<IN> messageDelayer,
+            @Nullable CryptoKeyReader cryptoKeyReader) {
         this.sinkConfiguration = checkNotNull(sinkConfiguration);
         this.serializationSchema = checkNotNull(serializationSchema);
-        this.metadataListener = checkNotNull(metadataListener);
+        this.topicRegister = checkNotNull(topicRegister);
         this.messageDelayer = checkNotNull(messageDelayer);
+        this.cryptoKeyReader = cryptoKeyReader;
         checkNotNull(topicRoutingMode);
 
         // Create topic router supplier.
@@ -125,9 +133,10 @@ public class PulsarSink<IN> implements TwoPhaseCommittingSink<IN, PulsarCommitta
         return new PulsarWriter<>(
                 sinkConfiguration,
                 serializationSchema,
-                metadataListener,
+                topicRegister,
                 topicRouter,
                 messageDelayer,
+                cryptoKeyReader,
                 initContext);
     }
 

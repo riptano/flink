@@ -41,6 +41,16 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 public abstract class UnorderedSourceTestSuiteBase<T> extends SourceTestSuiteBase<T> {
 
     @Override
+    @Disabled("We don't have any idle readers in Pulsar's shared subscription.")
+    public void testIdleReader(
+            TestEnvironment testEnv,
+            DataStreamSourceExternalContext<T> externalContext,
+            CheckpointingMode semantic)
+            throws Exception {
+        super.testIdleReader(testEnv, externalContext, semantic);
+    }
+
+    @Override
     protected void checkResultWithSemantic(
             CloseableIterator<T> resultIterator,
             List<List<T>> testData,
@@ -66,11 +76,4 @@ public abstract class UnorderedSourceTestSuiteBase<T> extends SourceTestSuiteBas
             return limit;
         }
     }
-
-    @Override
-    @Disabled("We don't have any idle readers in Pulsar's shared subscription.")
-    public void testIdleReader(
-            TestEnvironment testEnv,
-            DataStreamSourceExternalContext<T> externalContext,
-            CheckpointingMode semantic) {}
 }

@@ -16,62 +16,57 @@
  * limitations under the License.
  */
 
-package org.apache.flink.connector.pulsar.sink.writer.topic;
+package org.apache.flink.connector.pulsar.sink.writer.topic.register;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.operators.ProcessingTimeService;
+import org.apache.flink.connector.pulsar.common.request.PulsarAdminRequest;
 import org.apache.flink.connector.pulsar.sink.config.SinkConfiguration;
+import org.apache.flink.connector.pulsar.sink.writer.topic.TopicRegister;
+import org.apache.flink.connector.pulsar.sink.writer.topic.metadata.NotExistedTopicMetadataProvider;
+import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicMetadata;
 
 import org.apache.flink.shaded.guava30.com.google.common.base.Objects;
 import org.apache.flink.shaded.guava30.com.google.common.collect.ImmutableList;
 
-import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
-import static org.apache.flink.connector.pulsar.common.config.PulsarClientFactory.createAdmin;
 import static org.apache.flink.connector.pulsar.common.utils.PulsarExceptionUtils.sneakyAdmin;
-import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.isPartition;
+import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.isPartitioned;
 import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.topicName;
 import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.topicNameWithPartition;
 import static org.apache.pulsar.common.partition.PartitionedTopicMetadata.NON_PARTITIONED;
 
 /**
- * We need the latest topic metadata for making sure the newly created topic partitions would be
- * used by the Pulsar sink. This routing policy would be different compared with Pulsar Client
- * built-in logic. We use Flink's ProcessingTimer as the executor.
+ * We need the latest topic metadata for making sure the Pulsar sink would use the newly created
+ * topic partitions. This routing policy would be different compared with Pulsar Client built-in
+ * logic. We use Flink's ProcessingTimer as the executor.
  */
 @Internal
-public class TopicMetadataListener implements Serializable, Closeable {
+public class FixedTopicRegister<IN> implements TopicRegister<IN> {
     private static final long serialVersionUID = 6186948471557507522L;
 
-    private static final Logger LOG = LoggerFactory.getLogger(TopicMetadataListener.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FixedTopicRegister.class);
 
     private final ImmutableList<String> partitionedTopics;
     private final Map<String, Integer> topicMetadata;
     private volatile ImmutableList<String> availableTopics;
 
     // Dynamic fields.
-    private transient PulsarAdmin pulsarAdmin;
+    private transient PulsarAdminRequest adminRequest;
     private transient Long topicMetadataRefreshInterval;
     private transient ProcessingTimeService timeService;
+    private transient NotExistedTopicMetadataProvider metadataProvider;
 
-    public TopicMetadataListener() {
-        this(emptyList());
-    }
-
-    public TopicMetadataListener(List<String> topics) {
+    public FixedTopicRegister(List<String> topics) {
         List<String> partitions = new ArrayList<>(topics.size());
         Map<String, Integer> metadata = new HashMap<>(topics.size());
         for (String topic : topics) {
@@ -88,7 +83,7 @@ public class TopicMetadataListener implements Serializable, Closeable {
         this.availableTopics = ImmutableList.of();
     }
 
-    /** Register the topic metadata update in process time service. */
+    @Override
     public void open(SinkConfiguration sinkConfiguration, ProcessingTimeService timeService) {
         if (topicMetadata.isEmpty()) {
             LOG.info("No topics have been provided, skip listener initialize.");
@@ -96,23 +91,23 @@ public class TopicMetadataListener implements Serializable, Closeable {
         }
 
         // Initialize listener properties.
-        this.pulsarAdmin = createAdmin(sinkConfiguration);
+        this.adminRequest = new PulsarAdminRequest(sinkConfiguration);
         this.topicMetadataRefreshInterval = sinkConfiguration.getTopicMetadataRefreshInterval();
         this.timeService = timeService;
+        this.metadataProvider =
+                new NotExistedTopicMetadataProvider(adminRequest, sinkConfiguration);
 
         // Initialize the topic metadata. Quit if fail to connect to Pulsar.
         sneakyAdmin(this::updateTopicMetadata);
 
-        // Register time service.
-        triggerNextTopicMetadataUpdate(true);
+        // Register time service, if user enable the topic metadata update.
+        if (topicMetadataRefreshInterval > 0) {
+            triggerNextTopicMetadataUpdate(true);
+        }
     }
 
-    /**
-     * Return all the available topic partitions. We would recalculate the partitions if the topic
-     * metadata has been changed. Otherwise, we would return the cached result for better
-     * performance.
-     */
-    public List<String> availableTopics() {
+    @Override
+    public List<String> topics(IN in) {
         if (availableTopics.isEmpty()
                 && (!partitionedTopics.isEmpty() || !topicMetadata.isEmpty())) {
             List<String> results = new ArrayList<>();
@@ -137,8 +132,8 @@ public class TopicMetadataListener implements Serializable, Closeable {
 
     @Override
     public void close() throws IOException {
-        if (pulsarAdmin != null) {
-            pulsarAdmin.close();
+        if (adminRequest != null) {
+            adminRequest.close();
         }
     }
 
@@ -163,12 +158,11 @@ public class TopicMetadataListener implements Serializable, Closeable {
 
         for (Map.Entry<String, Integer> entry : topicMetadata.entrySet()) {
             String topic = entry.getKey();
-            PartitionedTopicMetadata metadata =
-                    pulsarAdmin.topics().getPartitionedTopicMetadata(topic);
+            TopicMetadata metadata = metadataProvider.query(topic);
 
             // Update topic metadata if it has been changed.
-            if (!Objects.equal(entry.getValue(), metadata.partitions)) {
-                entry.setValue(metadata.partitions);
+            if (!Objects.equal(entry.getValue(), metadata.getPartitionSize())) {
+                entry.setValue(metadata.getPartitionSize());
                 shouldUpdate = true;
             }
         }

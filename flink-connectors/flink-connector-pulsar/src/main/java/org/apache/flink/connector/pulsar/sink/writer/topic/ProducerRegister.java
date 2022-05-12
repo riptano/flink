@@ -26,6 +26,7 @@ import org.apache.flink.util.FlinkRuntimeException;
 
 import org.apache.flink.shaded.guava30.com.google.common.io.Closer;
 
+import org.apache.pulsar.client.api.CryptoKeyReader;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.ProducerBuilder;
 import org.apache.pulsar.client.api.PulsarClient;
@@ -36,6 +37,8 @@ import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClient;
 import org.apache.pulsar.client.api.transaction.TxnID;
 import org.apache.pulsar.client.impl.PulsarClientImpl;
 import org.apache.pulsar.common.schema.SchemaInfo;
+
+import javax.annotation.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -56,17 +59,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * we have to create different instances for different topics.
  */
 @Internal
-public class TopicProducerRegister implements Closeable {
+public class ProducerRegister implements Closeable {
 
     private final PulsarClient pulsarClient;
     private final SinkConfiguration sinkConfiguration;
-    private final Map<String, Map<SchemaInfo, Producer<?>>> producerRegister;
+    @Nullable private final CryptoKeyReader cryptoKeyReader;
+    private final Map<String, Map<SchemaInfo, Producer<?>>> register;
     private final Map<String, Transaction> transactionRegister;
 
-    public TopicProducerRegister(SinkConfiguration sinkConfiguration) {
+    public ProducerRegister(
+            SinkConfiguration sinkConfiguration, @Nullable CryptoKeyReader cryptoKeyReader) {
         this.pulsarClient = createClient(sinkConfiguration);
         this.sinkConfiguration = sinkConfiguration;
-        this.producerRegister = new HashMap<>();
+        this.cryptoKeyReader = cryptoKeyReader;
+        this.register = new HashMap<>();
         this.transactionRegister = new HashMap<>();
     }
 
@@ -110,7 +116,7 @@ public class TopicProducerRegister implements Closeable {
      * successfully persisted.
      */
     public void flush() throws IOException {
-        Collection<Map<SchemaInfo, Producer<?>>> collection = producerRegister.values();
+        Collection<Map<SchemaInfo, Producer<?>>> collection = register.values();
         for (Map<SchemaInfo, Producer<?>> producers : collection) {
             for (Producer<?> producer : producers.values()) {
                 producer.flush();
@@ -128,7 +134,7 @@ public class TopicProducerRegister implements Closeable {
             closer.register(this::abortTransactions);
 
             // Remove all the producers.
-            closer.register(producerRegister::clear);
+            closer.register(register::clear);
 
             // All the producers would be closed by this method.
             // We would block until all the producers have been successfully closed.
@@ -140,7 +146,7 @@ public class TopicProducerRegister implements Closeable {
     @SuppressWarnings("unchecked")
     private <T> Producer<T> getOrCreateProducer(String topic, Schema<T> schema) {
         Map<SchemaInfo, Producer<?>> producers =
-                producerRegister.computeIfAbsent(topic, key -> new HashMap<>());
+                register.computeIfAbsent(topic, key -> new HashMap<>());
         SchemaInfo schemaInfo = schema.getSchemaInfo();
 
         if (producers.containsKey(schemaInfo)) {
@@ -148,6 +154,12 @@ public class TopicProducerRegister implements Closeable {
         } else {
             ProducerBuilder<T> builder =
                     createProducerBuilder(pulsarClient, schema, sinkConfiguration);
+
+            // Set the message crypto key reader.
+            if (cryptoKeyReader != null) {
+                builder.cryptoKeyReader(cryptoKeyReader);
+            }
+
             // Set the required topic name.
             builder.topic(topic);
             Producer<T> producer = sneakyClient(builder::create);

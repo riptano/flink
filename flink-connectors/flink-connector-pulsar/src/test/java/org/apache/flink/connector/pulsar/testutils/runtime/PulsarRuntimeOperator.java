@@ -21,6 +21,7 @@ package org.apache.flink.connector.pulsar.testutils.runtime;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.DeliveryGuarantee;
 import org.apache.flink.connector.pulsar.common.config.PulsarConfiguration;
+import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicPartition;
 import org.apache.flink.connector.testframe.external.ExternalContext;
 
@@ -78,6 +79,7 @@ import static org.apache.pulsar.client.api.MessageId.earliest;
 import static org.apache.pulsar.client.api.ProducerAccessMode.Shared;
 import static org.apache.pulsar.client.api.SubscriptionMode.Durable;
 import static org.apache.pulsar.client.api.SubscriptionType.Exclusive;
+import static org.apache.pulsar.common.naming.TopicDomain.persistent;
 import static org.apache.pulsar.common.partition.PartitionedTopicMetadata.NON_PARTITIONED;
 
 /**
@@ -114,6 +116,16 @@ public class PulsarRuntimeOperator implements Closeable {
                                         .enableTransaction(true)
                                         .build());
         this.admin = sneakyClient(() -> PulsarAdmin.builder().serviceHttpUrl(adminUrl).build());
+    }
+
+    public boolean topicExists(String topic) {
+        TopicName topicName = TopicName.get(topic);
+        String namespace = topicName.getNamespace();
+        String parsedTopic = topicName.toString();
+
+        return sneakyAdmin(() -> admin().topics().getList(namespace, persistent)).stream()
+                .map(TopicNameUtils::topicName)
+                .anyMatch(name -> name.equals(parsedTopic));
     }
 
     /**
@@ -226,7 +238,12 @@ public class PulsarRuntimeOperator implements Closeable {
     public List<TopicPartition> topicInfo(String topic) {
         try {
             return client().getPartitionsForTopic(topic).get().stream()
-                    .map(p -> new TopicPartition(topic, TopicName.getPartitionIndex(p)))
+                    .map(
+                            p ->
+                                    new TopicPartition(
+                                            topic,
+                                            TopicName.getPartitionIndex(p),
+                                            singletonList(TopicRange.createFullRange())))
                     .collect(toList());
         } catch (InterruptedException | ExecutionException e) {
             throw new IllegalStateException(e);
@@ -478,7 +495,7 @@ public class PulsarRuntimeOperator implements Closeable {
         }
     }
 
-    private <T> Producer<T> createProducer(String topic, Schema<T> schema) {
+    public <T> Producer<T> createProducer(String topic, Schema<T> schema) {
         ProducerBuilder<T> builder =
                 client().newProducer(schema)
                         .topic(topic)

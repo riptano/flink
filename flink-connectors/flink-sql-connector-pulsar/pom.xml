@@ -72,6 +72,7 @@ under the License.
 									<include>org.bouncycastle:bcprov-jdk15on</include>
 									<include>org.bouncycastle:bcutil-jdk15on</include>
 									<include>org.slf4j:jul-to-slf4j</include>
+									<include>com.google.protobuf:*</include>
 								</includes>
 							</artifactSet>
 						</configuration>

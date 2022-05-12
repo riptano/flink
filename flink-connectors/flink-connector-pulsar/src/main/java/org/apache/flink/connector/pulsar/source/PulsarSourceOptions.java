@@ -29,7 +29,6 @@ import org.apache.flink.connector.pulsar.source.config.CursorVerification;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.StartCursor;
 
 import org.apache.pulsar.client.api.ConsumerCryptoFailureAction;
-import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 
@@ -140,13 +139,13 @@ public final class PulsarSourceOptions {
                                             "The value (in ms) should be greater than the checkpoint interval.")
                                     .build());
 
-    /**
-     * @deprecated Use {@link #PULSAR_READ_TRANSACTION_TIMEOUT} instead. This would be removed in
-     *     the next release.
-     */
-    @Deprecated
-    public static final ConfigOption<Long> PULSAR_TRANSACTION_TIMEOUT_MILLIS =
-            PULSAR_READ_TRANSACTION_TIMEOUT;
+    public static final ConfigOption<Long> PULSAR_DEFAULT_FETCH_TIME =
+            ConfigOptions.key(SOURCE_CONFIG_PREFIX + "defaultFetchTime")
+                    .longType()
+                    .defaultValue(100L)
+                    .withDescription(
+                            "The time (in ms) for fetching messages from Pulsar. If time exceed and no message returned from Pulsar."
+                                    + " We would consider there is no record at the current topic and stop fetch until next switch.");
 
     public static final ConfigOption<Long> PULSAR_MAX_FETCH_TIME =
             ConfigOptions.key(SOURCE_CONFIG_PREFIX + "maxFetchTime")
@@ -187,6 +186,17 @@ public final class PulsarSourceOptions {
                                             " If failure is enabled, the application fails. Otherwise, it logs a warning.")
                                     .text(
                                             " A possible solution is to adjust the retention settings in Pulsar or ignoring the check result.")
+                                    .build());
+
+    public static final ConfigOption<Boolean> PULSAR_READ_SCHEMA_EVOLUTION =
+            ConfigOptions.key(SOURCE_CONFIG_PREFIX + "enableSchemaEvolution")
+                    .booleanType()
+                    .defaultValue(false)
+                    .withDescription(
+                            Description.builder()
+                                    .text(
+                                            "If you enable this option, we would consume and deserialize the message by using Pulsar's %s.",
+                                            code("Schema"))
                                     .build());
 
     public static final ConfigOption<Boolean> PULSAR_ALLOW_KEY_SHARED_OUT_OF_ORDER_DELIVERY =
@@ -519,20 +529,6 @@ public final class PulsarSourceOptions {
                                             code("PulsarClientException"))
                                     .build());
 
-    /**
-     * @deprecated This option would be reset by {@link StartCursor}, no need to use it anymore.
-     *     Pulsar didn't support this config option before 1.10.1, so we have to remove this config
-     *     option.
-     */
-    @Deprecated
-    public static final ConfigOption<SubscriptionInitialPosition>
-            PULSAR_SUBSCRIPTION_INITIAL_POSITION =
-                    ConfigOptions.key(CONSUMER_CONFIG_PREFIX + "subscriptionInitialPosition")
-                            .enumType(SubscriptionInitialPosition.class)
-                            .defaultValue(SubscriptionInitialPosition.Latest)
-                            .withDescription(
-                                    "Initial position at which to set cursor when subscribing to a topic at first time.");
-
     // The config set for DeadLetterPolicy
 
     /**
@@ -583,13 +579,6 @@ public final class PulsarSourceOptions {
                     .booleanType()
                     .defaultValue(false)
                     .withDescription("If enabled, the consumer will automatically retry messages.");
-
-    public static final ConfigOption<Integer> PULSAR_AUTO_UPDATE_PARTITIONS_INTERVAL_SECONDS =
-            ConfigOptions.key(CONSUMER_CONFIG_PREFIX + "autoUpdatePartitionsIntervalSeconds")
-                    .intType()
-                    .defaultValue(60)
-                    .withDescription(
-                            "The interval (in seconds) of updating partitions. This only works if autoUpdatePartitions is enabled.");
 
     public static final ConfigOption<Boolean> PULSAR_REPLICATE_SUBSCRIPTION_STATE =
             ConfigOptions.key(CONSUMER_CONFIG_PREFIX + "replicateSubscriptionState")

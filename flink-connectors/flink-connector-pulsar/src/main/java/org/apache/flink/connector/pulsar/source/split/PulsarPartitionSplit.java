@@ -39,7 +39,6 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 @Internal
 public class PulsarPartitionSplit implements SourceSplit, Serializable {
     private static final long serialVersionUID = -6857317360756062625L;
-
     private final TopicPartition partition;
 
     private final StopCursor stopCursor;
