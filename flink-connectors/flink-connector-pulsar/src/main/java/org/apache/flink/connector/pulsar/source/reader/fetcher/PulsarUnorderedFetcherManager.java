@@ -51,7 +51,7 @@ public class PulsarUnorderedFetcherManager extends PulsarFetcherManagerBase {
         super(elementsQueue, splitReaderSupplier);
     }
 
-    public List<PulsarPartitionSplit> snapshotState() {
+    public List<PulsarPartitionSplit> snapshotState(long checkpointId) {
         return fetchers.values().stream()
                 .map(SplitFetcher::getSplitReader)
                 .map(splitReader -> snapshotReader(checkpointId, splitReader))

@@ -183,13 +183,14 @@ public final class PulsarSchema<T> implements Serializable {
         // Timestamp
         long timestamp = ois.readLong();
 
-        this.schemaInfo = SchemaInfoImpl.builder()
-                .name(name)
-                .schema(schemaBytes)
-                .type(type)
-                .properties(properties)
-                .timestamp(timestamp)
-                .build();
+        this.schemaInfo =
+                SchemaInfoImpl.builder()
+                        .name(name)
+                        .schema(schemaBytes)
+                        .type(type)
+                        .properties(properties)
+                        .timestamp(timestamp)
+                        .build();
         this.schema = createSchema(schemaInfo);
     }
 
