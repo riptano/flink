@@ -111,7 +111,8 @@ class PulsarSinkITCase {
                             topic,
                             guarantee,
                             counts,
-                            Duration.ofMillis(50));
+                            Duration.ofMillis(50),
+                            Duration.ofMinutes(5));
             PulsarSink<String> sink =
                     PulsarSink.builder()
                             .setServiceUrl(operator().serviceUrl())

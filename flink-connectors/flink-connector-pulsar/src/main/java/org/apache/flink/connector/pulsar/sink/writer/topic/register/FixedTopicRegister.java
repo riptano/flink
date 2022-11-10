@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.flink.connector.pulsar.common.utils.PulsarExceptionUtils.sneakyAdmin;
+import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.isPartitioned;
 import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.topicName;
 import static org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils.topicNameWithPartition;
 import static org.apache.pulsar.common.partition.PartitionedTopicMetadata.NON_PARTITIONED;
@@ -69,7 +70,7 @@ public class FixedTopicRegister<IN> implements TopicRegister<IN> {
         List<String> partitions = new ArrayList<>(topics.size());
         Map<String, Integer> metadata = new HashMap<>(topics.size());
         for (String topic : topics) {
-            if (isPartition(topic)) {
+            if (isPartitioned(topic)) {
                 partitions.add(topic);
             } else {
                 // This would be updated when open writing.

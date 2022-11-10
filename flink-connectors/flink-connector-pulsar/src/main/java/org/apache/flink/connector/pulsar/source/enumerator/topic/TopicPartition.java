@@ -57,8 +57,6 @@ public class TopicPartition implements Serializable {
      */
     public static final int NON_PARTITION_ID = -1;
 
-    private static final List<TopicRange> FULL_RANGES = ImmutableList.of(createFullRange());
-
     /**
      * The topic name of the pulsar. It would be a full topic name. If you don't provide the tenant
      * and namespace, we would add them automatically.

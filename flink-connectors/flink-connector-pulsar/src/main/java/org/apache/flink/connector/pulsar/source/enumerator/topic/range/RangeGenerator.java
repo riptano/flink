@@ -93,32 +93,4 @@ public interface RangeGenerator extends Serializable {
          */
         JOIN
     }
-
-    /**
-     * Different Key_Shared mode means different split assignment behaviors. If you only consume a
-     * subset of Pulsar's key hash range, remember to use the {@link KeySharedMode#JOIN} mode which
-     * will subscribe all the range in only one reader. Otherwise, when the ranges can join into a
-     * full Pulsar key hash range (0 ~ 65535) you should use {@link KeySharedMode#SPLIT} for sharing
-     * the splits among all the backend readers.
-     *
-     * <p>In the {@link KeySharedMode#SPLIT} mode. The topic will be subscribed by multiple readers.
-     * But Pulsar has one limit in this situation. That is if a Message can't find the corresponding
-     * reader by the key hash range. No messages will be delivered to the current readers, until
-     * there is a reader which can subscribe to such messages.
-     */
-    @PublicEvolving
-    enum KeySharedMode {
-
-        /**
-         * The topic ranges that the {@link RangeGenerator} generated will be split among the
-         * readers.
-         */
-        SPLIT,
-
-        /**
-         * Assign all the topic ranges to only one reader instance. This is used for partial key
-         * hash range subscription.
-         */
-        JOIN
-    }
 }

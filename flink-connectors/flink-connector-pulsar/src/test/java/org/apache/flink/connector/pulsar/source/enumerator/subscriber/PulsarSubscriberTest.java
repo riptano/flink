@@ -93,49 +93,6 @@ class PulsarSubscriberTest extends PulsarTestSuiteBase {
 
     @Test
     void subscribeOnePartitionOfMultiplePartitionTopic() {
-        String partition = topicNameWithPartition(topic1, 2);
-
-        PulsarSubscriber subscriber = getTopicListSubscriber(singletonList(partition));
-        Set<TopicPartition> partitions =
-                subscriber.getSubscribedTopicPartitions(
-                        operator().admin(), new FullRangeGenerator(), NUM_PARALLELISM);
-
-        TopicPartition desiredPartition = new TopicPartition(topic1, 2);
-        assertThat(partitions).hasSize(1).containsExactly(desiredPartition);
-    }
-
-    @Test
-    void subscribeNonPartitionedTopicList() {
-        PulsarSubscriber subscriber = getTopicListSubscriber(singletonList(topic4));
-        Set<TopicPartition> partitions =
-                subscriber.getSubscribedTopicPartitions(
-                        operator().admin(), new FullRangeGenerator(), NUM_PARALLELISM);
-
-        TopicPartition desiredPartition = new TopicPartition(topic4, -1);
-        assertThat(partitions).hasSize(1).containsExactly(desiredPartition);
-    }
-
-    @Test
-    void subscribeNonPartitionedTopicPattern() {
-        PulsarSubscriber subscriber =
-                getTopicPatternSubscriber(
-                        Pattern.compile("persistent://public/default/non-partitioned-topic*?"),
-                        AllTopics);
-
-        Set<TopicPartition> topicPartitions =
-                subscriber.getSubscribedTopicPartitions(
-                        operator().admin(), new FullRangeGenerator(), NUM_PARALLELISM);
-
-        Set<TopicPartition> expectedPartitions = new HashSet<>();
-
-        expectedPartitions.add(new TopicPartition(topic4, -1));
-        expectedPartitions.add(new TopicPartition(topic5, -1));
-
-        assertEquals(expectedPartitions, topicPartitions);
-    }
-
-    @Test
-    void subscribeOnePartitionOfMultiplePartitionTopic() {
         PulsarAdminRequest adminRequest =
                 new PulsarAdminRequest(operator().admin(), operator().config());
         String partition = topicNameWithPartition(topic1, 2);
