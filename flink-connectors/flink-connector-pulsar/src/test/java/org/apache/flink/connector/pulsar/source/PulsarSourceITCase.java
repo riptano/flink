@@ -34,12 +34,14 @@ import org.apache.flink.testutils.junit.FailsOnJava11;
 
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * Unit test class for {@link PulsarSource}. Used for {@link SubscriptionType#Exclusive}
  * subscription.
  */
 @SuppressWarnings("unused")
+@Disabled
 @Category(value = {FailsOnJava11.class})
 class PulsarSourceITCase extends SourceTestSuiteBase<String> {
 
