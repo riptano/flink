@@ -21,4 +21,4 @@ jobs:
       - name: Run Unit Test and Install
         run: |
           mvn -ntp -pl 'flink-test-utils-parent/flink-connector-test-utils,flink-connectors/flink-connector-pulsar,flink-connectors/flink-sql-connector-pulsar' clean install -DskipTests
-          mvn -ntp -pl 'flink-connectors/flink-connector-pulsar' test
+          mvn -ntp -pl 'flink-connectors/flink-connector-pulsar' verify
