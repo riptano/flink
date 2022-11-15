@@ -31,7 +31,7 @@ import org.apache.flink.tests.util.pulsar.source.ExclusiveSubscriptionContext;
 import org.apache.flink.tests.util.pulsar.source.FailoverSubscriptionContext;
 import org.apache.flink.testutils.junit.FailsOnJava11;
 
-import org.junit.jupiter.api.Tag;
+import org.junit.experimental.categories.Category;
 
 /**
  * Pulsar E2E test based on connector testing framework. It's used for Failover & Exclusive

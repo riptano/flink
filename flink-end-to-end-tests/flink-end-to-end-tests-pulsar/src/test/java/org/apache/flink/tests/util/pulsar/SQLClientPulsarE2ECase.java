@@ -19,7 +19,8 @@
 package org.apache.flink.tests.util.pulsar;
 
 import org.apache.flink.connector.pulsar.table.PulsarTableFactory;
-import org.apache.flink.tests.util.TestUtils;
+import org.apache.flink.test.resources.ResourceTestUtils;
+import org.apache.flink.test.util.SQLJobSubmission;
 import org.apache.flink.tests.util.flink.*;
 import org.apache.flink.tests.util.pulsar.common.FlinkContainerWithPulsarEnvironment;
 import org.apache.flink.tests.util.pulsar.common.PulsarContainerTestEnvironment;
@@ -67,8 +68,8 @@ public class SQLClientPulsarE2ECase {
     private static final PulsarContainerTestEnvironment pulsar =
             new PulsarContainerTestEnvironment(flink);
 
-    private static final Path sqlAvroJar = TestUtils.getResource(".*avro.jar");
-    private static final Path sqlToolBoxJar = TestUtils.getResource(".*SqlToolbox.jar");
+    private static final Path sqlAvroJar = ResourceTestUtils.getResource(".*avro.jar");
+    private static final Path sqlToolBoxJar = ResourceTestUtils.getResource(".*SqlToolbox.jar");
 
     private final List<Path> apacheAvroJars = new ArrayList<>();
 
@@ -136,7 +137,7 @@ public class SQLClientPulsarE2ECase {
                         new SQLJobSubmission.SQLJobSubmissionBuilder(sqlLines)
                                 .addJar(sqlAvroJar)
                                 .addJars(apacheAvroJars)
-                                .addJar(TestUtils.getResource(sqlJarPath))
+                                .addJar(ResourceTestUtils.getResource(sqlJarPath))
                                 .addJar(sqlToolBoxJar)
                                 .build());
     }
