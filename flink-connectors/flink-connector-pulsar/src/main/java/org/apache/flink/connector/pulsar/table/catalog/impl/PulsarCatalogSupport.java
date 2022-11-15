@@ -44,6 +44,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.apache.flink.connector.pulsar.table.PulsarTableOptions.VALUE_FORMAT;
 
 /**
  * This class is the implementation layer of catalog operations. It uses {@link PulsarAdminTool} to
@@ -183,6 +186,12 @@ public class PulsarCatalogSupport {
                 Map<String, String> tableProperties =
                         TableSchemaHelper.generateTableProperties(metadataSchema);
                 CatalogTable table = CatalogTable.fromProperties(tableProperties);
+                if (table.getOptions().containsKey(FactoryUtil.CONNECTOR.key())
+                        && !Objects.equals(
+                                table.getOptions().get(FactoryUtil.CONNECTOR.key()),
+                                PulsarTableFactory.IDENTIFIER)) {
+                    return table;
+                }
                 table.getOptions().put(PulsarTableOptions.EXPLICIT.key(), Boolean.TRUE.toString());
                 return CatalogTable.of(
                         table.getUnresolvedSchema(),
@@ -279,11 +288,12 @@ public class PulsarCatalogSupport {
         }
 
         // we always provide RAW format as a default format
-        if (!enrichedTableOptions.containsKey(FactoryUtil.FORMAT.key())) {
-            enrichedTableOptions.put(FactoryUtil.FORMAT.key(), RawFormatFactory.IDENTIFIER);
+        if (!tableOptions.containsKey(FactoryUtil.FORMAT.key())
+                && !tableOptions.containsKey(VALUE_FORMAT.key())) {
+            enrichedTableOptions.put(VALUE_FORMAT.key(), RawFormatFactory.IDENTIFIER);
         }
 
-        if (tableOptions != null) {
+        if (!tableOptions.isEmpty()) {
             // table options could overwrite the default options provided above
             enrichedTableOptions.putAll(tableOptions);
         }

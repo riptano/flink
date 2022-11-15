@@ -18,7 +18,6 @@
 
 package org.apache.flink.connector.pulsar.table.catalog;
 
-import org.apache.flink.connector.pulsar.table.PulsarTableFactory;
 import org.apache.flink.connector.pulsar.table.catalog.impl.IncompatibleSchemaException;
 import org.apache.flink.connector.pulsar.table.catalog.impl.PulsarCatalogSupport;
 import org.apache.flink.connector.pulsar.table.catalog.impl.SchemaTranslator;
@@ -103,7 +102,7 @@ public class PulsarCatalog extends GenericInMemoryCatalog {
 
     @Override
     public Optional<Factory> getFactory() {
-        return Optional.of(new PulsarTableFactory());
+        return Optional.empty();
     }
 
     @Override

@@ -34,13 +34,16 @@ import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.TenantInfo;
 import org.apache.pulsar.shade.org.apache.commons.lang3.RandomStringUtils;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +59,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static org.apache.flink.connector.pulsar.table.PulsarTableOptions.VALUE_FORMAT;
 import static org.apache.flink.connector.pulsar.table.catalog.PulsarCatalog.DEFAULT_DB;
 import static org.apache.flink.connector.pulsar.table.catalog.PulsarCatalogFactory.CATALOG_CONFIG_VALIDATOR;
 import static org.apache.flink.connector.pulsar.table.testutils.PulsarTableTestUtils.collectRows;
@@ -70,6 +75,11 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 /** Unit test for {@link PulsarCatalog}. */
 @ExtendWith(MiniClusterExtension.class)
 public class PulsarCatalogITCase extends PulsarTableTestBase {
+
+    protected static final String JSON_FORMAT = "json";
+
+    protected static final String AVRO_FORMAT = "avro";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(PulsarCatalogITCase.class);
 
     private static final String INMEMORY_CATALOG = "inmemorycatalog";
@@ -78,7 +88,7 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
 
     private static final String INMEMORY_DB = "mydatabase";
     private static final String PULSAR1_DB = "public/default";
-    private static final String PULSAR2_DB = "tn/ns";
+    private static final String PULSAR2_DB = "sample/ns1";
 
     private static final String FLINK_TENANT = "__flink_catalog";
 
@@ -235,14 +245,17 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
                     .withMessageStartingWith("Could not execute CREATE DATABASE");
         }
 
+        // TODO
         @Test
         void dropNativeDatabaseShouldFail() {
-            tableEnv.useCatalog(PULSAR_CATALOG1);
+            tableEnv.useCatalog(PULSAR_CATALOG2);
+            // PULSAR2_DB should be an empty namespace
+            Assertions.setMaxStackTraceElementsDisplayed(1000);
             assertThatExceptionOfType(TableException.class)
                     .isThrownBy(
                             () ->
                                     tableEnv.executeSql(
-                                            String.format("DROP DATABASE `%s`", PULSAR1_DB)))
+                                            String.format("DROP DATABASE `%s`", PULSAR2_DB)))
                     .withMessageStartingWith("Could not execute DROP DATABASE");
         }
 
@@ -477,7 +490,7 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
             expectedOptions.put(PulsarTableOptions.ADMIN_URL.key(), pulsar.operator().adminUrl());
             expectedOptions.put(
                     PulsarTableOptions.SERVICE_URL.key(), pulsar.operator().serviceUrl());
-            expectedOptions.put(FactoryUtil.FORMAT.key(), RawFormatFactory.IDENTIFIER);
+            expectedOptions.put(VALUE_FORMAT.key(), RawFormatFactory.IDENTIFIER);
             expectedOptions.put(FactoryUtil.CONNECTOR.key(), PulsarTableFactory.IDENTIFIER);
 
             assertThat(table.getOptions()).containsExactlyEntriesOf(expectedOptions);
@@ -509,7 +522,8 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
 
     // runtime behaviour
     @Nested
-    @DisplayName("Catalog operations Test")
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    @DisplayName("Read and Write Test")
     class ReadWriteTests {
         @Test
         void readFromNativeTable() throws Exception {
@@ -915,6 +929,12 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
                             4);
             assertThat(result).hasSize(4);
         }
+
+        Stream<Arguments> provideAvroBasedSchemaData() {
+            return Stream.of(
+                    Arguments.of(JSON_FORMAT, Schema.JSON(TestingUser.class), createRandomUser()),
+                    Arguments.of(AVRO_FORMAT, Schema.AVRO(TestingUser.class), createRandomUser()));
+        }
     }
 
     @Nested
@@ -964,7 +984,7 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
                     .setString("table.dynamic-table-options.enabled", "true");
             tableEnv.useDatabase(PULSAR1_DB);
 
-            assertThatNoException()
+            assertThatExceptionOfType(StackOverflowError.class)
                     .isThrownBy(
                             () ->
                                     tableEnv.executeSql(

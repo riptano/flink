@@ -18,10 +18,15 @@
 
 package org.apache.flink.connector.pulsar.table;
 
+import org.apache.flink.connector.pulsar.common.config.PulsarConfigBuilder;
+import org.apache.flink.connector.pulsar.common.config.PulsarOptions;
+import org.apache.flink.connector.pulsar.table.catalog.PulsarCatalog;
+import org.apache.flink.connector.pulsar.table.catalog.PulsarCatalogConfiguration;
 import org.apache.flink.formats.json.canal.CanalJsonFormatFactory;
 import org.apache.flink.formats.json.debezium.DebeziumJsonFormatFactory;
 import org.apache.flink.formats.json.maxwell.MaxwellJsonFormatFactory;
 import org.apache.flink.table.api.TableConfig;
+import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.api.config.OptimizerConfigOptions;
@@ -35,15 +40,23 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.apache.flink.connector.pulsar.table.catalog.PulsarCatalogFactory.CATALOG_CONFIG_VALIDATOR;
 import static org.apache.flink.connector.pulsar.table.testutils.PulsarTableTestUtils.readLines;
 import static org.apache.flink.connector.pulsar.table.testutils.PulsarTableTestUtils.waitingExpectedResults;
 
 /** IT cases for Pulsar with changelog format for Table API & SQL. */
 public class PulsarChangelogTableITCase extends PulsarTableTestBase {
 
+    private static final String PULSAR_CATALOG = "pulsarcatalog";
+
+    private static final String PULSAR_DB = "some_database";
+
+    private static final String FLINK_TENANT = "__flink_catalog";
+
     @BeforeAll
     public void before() {
         env.setParallelism(1);
+        registerCatalogs(tableEnv);
     }
 
     @Test
@@ -93,7 +106,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
                         pulsar.operator().adminUrl(),
                         DebeziumJsonFormatFactory.IDENTIFIER);
         String sinkDDL =
-                "CREATE TABLE sink ("
+                "CREATE TABLE debezium_sink ("
                         + " origin_topic STRING,"
                         + " origin_table STRING,"
                         + " name STRING,"
@@ -107,7 +120,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
         tableEnv.executeSql(sinkDDL);
         TableResult tableResult =
                 tableEnv.executeSql(
-                        "INSERT INTO sink "
+                        "INSERT INTO debezium_sink "
                                 + "SELECT FIRST_VALUE(origin_topic), FIRST_VALUE(origin_table), name, SUM(weight) "
                                 + "FROM debezium_source GROUP BY name");
         /*
@@ -167,7 +180,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
                         "+I[persistent://public/default/changelog_topic-partition-0, products, jacket, 0.600]",
                         "+I[persistent://public/default/changelog_topic-partition-0, products, spare tire, 22.200]");
 
-        waitingExpectedResults("sink", expected, Duration.ofSeconds(10));
+        waitingExpectedResults("debezium_sink", expected, Duration.ofSeconds(10));
 
         // ------------- cleanup -------------------
 
@@ -228,7 +241,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
                         pulsar.operator().adminUrl(),
                         CanalJsonFormatFactory.IDENTIFIER);
         String sinkDDL =
-                "CREATE TABLE sink ("
+                "CREATE TABLE canal_sink ("
                         + " origin_topic STRING,"
                         + " origin_database STRING,"
                         + " origin_table STRING,"
@@ -246,7 +259,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
         tableEnv.executeSql(sinkDDL);
         TableResult tableResult =
                 tableEnv.executeSql(
-                        "INSERT INTO sink "
+                        "INSERT INTO canal_sink "
                                 + "SELECT origin_topic, origin_database, origin_table, origin_sql_type, "
                                 + "origin_pk_names, origin_ts, origin_es, name "
                                 + "FROM canal_source");
@@ -309,7 +322,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
                         "+I[persistent://public/default/changelog_canal-partition-0, inventory, products2, {name=12, weight=7, description=12, id=4}, [id], 2020-05-13T12:42:33.939, 2020-05-13T12:42:33, car battery]",
                         "+I[persistent://public/default/changelog_canal-partition-0, inventory, products2, {name=12, weight=7, description=12, id=4}, [id], 2020-05-13T12:42:33.939, 2020-05-13T12:42:33, scooter]");
 
-        waitingExpectedResults("sink", expected, Duration.ofSeconds(10));
+        waitingExpectedResults("canal_sink", expected, Duration.ofSeconds(10));
 
         // ------------- cleanup -------------------
 
@@ -367,7 +380,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
                         pulsar.operator().adminUrl(),
                         MaxwellJsonFormatFactory.IDENTIFIER);
         String sinkDDL =
-                "CREATE TABLE sink ("
+                "CREATE TABLE maxwell_sink ("
                         + " origin_topic STRING,"
                         + " origin_database STRING,"
                         + " origin_table STRING,"
@@ -383,7 +396,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
         tableEnv.executeSql(sinkDDL);
         TableResult tableResult =
                 tableEnv.executeSql(
-                        "INSERT INTO sink "
+                        "INSERT INTO maxwell_sink "
                                 + "SELECT origin_topic, origin_database, origin_table, origin_primary_key_columns, "
                                 + "origin_ts, name "
                                 + "FROM maxwell_source");
@@ -446,7 +459,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
                         "+I[persistent://public/default/changelog_maxwell-partition-0, test, product, null, 2020-08-06T03:35:28, car battery]",
                         "+I[persistent://public/default/changelog_maxwell-partition-0, test, product, null, 2020-08-06T03:35:28, scooter]");
 
-        waitingExpectedResults("sink", expected, Duration.ofSeconds(10));
+        waitingExpectedResults("maxwell_sink", expected, Duration.ofSeconds(10));
 
         // ------------- cleanup -------------------
 
@@ -455,5 +468,23 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
 
     private void writeRecordsToPulsar(String topic, List<String> lines) {
         pulsar.operator().sendMessages(topic, Schema.STRING, lines);
+    }
+
+    private void registerCatalogs(TableEnvironment tableEnvironment) {
+        PulsarConfigBuilder configBuilder = new PulsarConfigBuilder();
+        configBuilder.set(PulsarOptions.PULSAR_ADMIN_URL, pulsar.operator().adminUrl());
+        configBuilder.set(PulsarOptions.PULSAR_SERVICE_URL, pulsar.operator().serviceUrl());
+        tableEnvironment.registerCatalog(
+                PULSAR_CATALOG,
+                new PulsarCatalog(
+                        PULSAR_CATALOG,
+                        configBuilder.build(
+                                CATALOG_CONFIG_VALIDATOR, PulsarCatalogConfiguration::new),
+                        PULSAR_DB,
+                        FLINK_TENANT));
+
+        tableEnvironment.useCatalog(PULSAR_CATALOG);
+        tableEnvironment.executeSql(String.format("CREATE DATABASE %s", PULSAR_DB));
+        tableEnvironment.useDatabase(PULSAR_DB);
     }
 }
