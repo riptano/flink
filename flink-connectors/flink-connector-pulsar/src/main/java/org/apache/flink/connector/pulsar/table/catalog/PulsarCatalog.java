@@ -53,8 +53,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
-import static org.apache.flink.connector.pulsar.table.catalog.PulsarCatalogFactoryOptions.DEFAULT_DATABASE;
-
 /**
  * Catalog implementation to use Pulsar to store metadatas for Flink tables/databases.
  *
