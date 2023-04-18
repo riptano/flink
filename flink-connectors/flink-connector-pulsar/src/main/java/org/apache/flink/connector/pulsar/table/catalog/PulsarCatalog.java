@@ -53,8 +53,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
-import static org.apache.flink.connector.pulsar.table.catalog.PulsarCatalogFactoryOptions.DEFAULT_DATABASE;
-
 /**
  * Catalog implementation to use Pulsar to store metadatas for Flink tables/databases.
  *
@@ -123,7 +121,7 @@ public class PulsarCatalog extends GenericInMemoryCatalog {
         CatalogDatabaseImpl defaultDatabase =
                 new CatalogDatabaseImpl(new HashMap<>(), "The default database for PulsarCatalog");
         try {
-            createDatabase(catalogConfiguration.get(DEFAULT_DATABASE), defaultDatabase, true);
+            createDatabase(getDefaultDatabase(), defaultDatabase, true);
         } catch (DatabaseAlreadyExistException e) {
             throw new CatalogException(
                     "Error: should ignore default database if not exist instead of throwing exception");
