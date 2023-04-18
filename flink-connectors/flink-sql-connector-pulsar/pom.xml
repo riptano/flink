@@ -38,11 +38,26 @@ under the License.
 		<japicmp.skip>true</japicmp.skip>
 	</properties>
 
+	<version>1.16.0.0.0</version>
+
 	<dependencies>
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-connector-pulsar</artifactId>
 			<version>${project.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-test-utils-junit</artifactId>
+			<version>${parent.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-architecture-tests-base</artifactId>
+			<version>${parent.version}</version>
+			<scope>test</scope>
 		</dependency>
 	</dependencies>
 
