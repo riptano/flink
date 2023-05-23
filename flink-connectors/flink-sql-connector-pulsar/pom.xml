@@ -23,11 +23,8 @@ under the License.
 
 	<modelVersion>4.0.0</modelVersion>
 
-	<parent>
-		<artifactId>flink-connectors</artifactId>
-		<groupId>org.apache.flink</groupId>
-		<version>1.16.0</version>
-	</parent>
+        <groupId>org.apache.flink</groupId>
+	<version>1.16.0</version>
 
 	<artifactId>flink-sql-connector-pulsar</artifactId>
 	<name>Flink : Connectors : SQL : Pulsar</name>

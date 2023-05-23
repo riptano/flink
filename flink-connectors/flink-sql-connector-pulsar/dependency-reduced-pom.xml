@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.apache.flink</groupId>
+  <artifactId>flink-sql-connector-pulsar</artifactId>
+  <name>Flink : Connectors : SQL : Pulsar</name>
+  <version>1.16.0</version>
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>shade-flink</id>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <artifactSet>
+                <includes>
+                  <include>org.apache.flink:flink-connector-base</include>
+                  <include>org.apache.flink:flink-connector-pulsar</include>
+                  <include>org.apache.pulsar:bouncy-castle-bc</include>
+                  <include>org.apache.pulsar:pulsar-client-admin-api</include>
+                  <include>org.apache.pulsar:pulsar-client-all</include>
+                  <include>org.apache.pulsar:pulsar-client-api</include>
+                  <include>org.bouncycastle:bcpkix-jdk15on</include>
+                  <include>org.bouncycastle:bcprov-ext-jdk15on</include>
+                  <include>org.bouncycastle:bcprov-jdk15on</include>
+                  <include>org.bouncycastle:bcutil-jdk15on</include>
+                  <include>org.slf4j:jul-to-slf4j</include>
+                  <include>com.google.protobuf:*</include>
+                </includes>
+              </artifactSet>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  <properties>
+    <japicmp.skip>true</japicmp.skip>
+  </properties>
+</project>
