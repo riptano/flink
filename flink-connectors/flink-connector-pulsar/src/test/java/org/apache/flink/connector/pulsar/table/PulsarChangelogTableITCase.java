@@ -480,7 +480,7 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
                         PULSAR_CATALOG,
                         configBuilder.build(
                                 CATALOG_CONFIG_VALIDATOR, PulsarCatalogConfiguration::new),
-                        PULSAR_DB,
+                        PulsarCatalog.DEFAULT_DB,
                         FLINK_TENANT));
 
         tableEnvironment.useCatalog(PULSAR_CATALOG);
