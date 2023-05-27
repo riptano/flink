@@ -138,14 +138,14 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
             assertThat(catalog).isInstanceOf(PulsarCatalog.class);
 
             tableEnv.useCatalog(PULSAR_CATALOG1);
-            assertThat(tableEnv.getCurrentDatabase()).isEqualTo(PULSAR1_DB);
+            assertThat(tableEnv.getCurrentDatabase()).isEqualTo(DEFAULT_DB);
 
             catalog = tableEnv.getCatalog(PULSAR_CATALOG2).orElse(null);
             assertThat(catalog).isNotNull();
             assertThat(catalog).isInstanceOf(PulsarCatalog.class);
 
             tableEnv.useCatalog(PULSAR_CATALOG2);
-            assertThat(tableEnv.getCurrentDatabase()).isEqualTo(PULSAR2_DB);
+            assertThat(tableEnv.getCurrentDatabase()).isEqualTo(DEFAULT_DB);
         }
 
         // database operations
