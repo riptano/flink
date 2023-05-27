@@ -50,7 +50,7 @@ under the License.
 		<flink.forkCountITCase>2</flink.forkCountITCase>
 	</properties>
 
-	<version>1.16.0.0.0</version>
+	<version>1.16.0.0.1</version>
 
 	<dependencies>
 		<!-- Core -->
