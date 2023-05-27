@@ -47,7 +47,7 @@ public class PulsarUnorderedSourceITCase extends UnorderedSourceTestSuiteBase<St
 
     // Defines pulsar running environment
     @TestExternalSystem
-    PulsarTestEnvironment pulsar = new PulsarTestEnvironment(PulsarRuntime.mock());
+    PulsarTestEnvironment pulsar = new PulsarTestEnvironment(PulsarRuntime.container());
 
     // Defines the Semantic.
     @TestSemantics

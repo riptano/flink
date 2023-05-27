@@ -39,6 +39,12 @@
             <td>The interval (in seconds) of updating partitions. This only works if autoUpdatePartitions is enabled.</td>
         </tr>
         <tr>
+            <td><h5>pulsar.consumer.autoScaledReceiverQueueSizeEnabled</h5></td>
+            <td style="word-wrap: break-word;">true</td>
+            <td>Boolean</td>
+            <td>This option is enabled by default. The consumer receiver queue size is initialized with 1, and will double itself until it reaches the value set by <code class="highlighter-rouge">pulsar.consumer.receiverQueueSize</code>.<br />The feature should be able to reduce client memory usage.</td>
+        </tr>
+        <tr>
             <td><h5>pulsar.consumer.consumerName</h5></td>
             <td style="word-wrap: break-word;">(none)</td>
             <td>String</td>
@@ -157,6 +163,12 @@ C5, 1, 1
             <td style="word-wrap: break-word;">Shared</td>
             <td><p>Enum</p></td>
             <td>Subscription type.<br /><br />Four subscription types are available:<ul><li>Exclusive</li><li>Failover</li><li>Shared</li><li>Key_Shared</li></ul><br /><br />Possible values:<ul><li>"Exclusive"</li><li>"Shared"</li><li>"Failover"</li><li>"Key_Shared"</li></ul></td>
+        </tr>
+        <tr>
+            <td><h5>pulsar.consumer.subscriptionProperties</h5></td>
+            <td style="word-wrap: break-word;">(none)</td>
+            <td>Map</td>
+            <td>Subscription properties is an optional attribute, which can be set when subscribing to topic. These properties cannot be modified. We can only delete the subscription and create it again.</td>
         </tr>
         <tr>
             <td><h5>pulsar.consumer.tickDurationMillis</h5></td>

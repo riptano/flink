@@ -35,7 +35,7 @@ under the License.
 	<packaging>jar</packaging>
 
 	<properties>
-		<pulsar.version>2.10.2</pulsar.version>
+		<pulsar.version>2.11.1</pulsar.version>
 
 		<!-- Test Libraries -->
 		<protobuf-maven-plugin.version>0.6.1</protobuf-maven-plugin.version>
@@ -44,6 +44,10 @@ under the License.
 		<pulsar-netty.version>4.1.77.Final</pulsar-netty.version>
 		<pulsar-grpc.version>1.45.1</pulsar-grpc.version>
 		<pulsar-caffeine.version>2.9.1</pulsar-caffeine.version>
+
+		<!-- Pulsar container requires more memories since 2.11.0. Reduce the surefire instance. -->
+		<flink.forkCountUnitTest>2</flink.forkCountUnitTest>
+		<flink.forkCountITCase>2</flink.forkCountITCase>
 	</properties>
 
 	<version>1.16.0.0.0</version>
@@ -272,6 +276,22 @@ under the License.
 				<exclusion>
 					<groupId>com.beust</groupId>
 					<artifactId>jcommander</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-api</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-slf4j-impl</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.pulsar</groupId>
+					<artifactId>bouncy-castle-bc</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>
