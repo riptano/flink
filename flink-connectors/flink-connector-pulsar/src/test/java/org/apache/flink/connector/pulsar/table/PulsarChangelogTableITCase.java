@@ -484,7 +484,6 @@ public class PulsarChangelogTableITCase extends PulsarTableTestBase {
                         FLINK_TENANT));
 
         tableEnvironment.useCatalog(PULSAR_CATALOG);
-        tableEnvironment.executeSql(String.format("CREATE DATABASE %s", PULSAR_DB));
         tableEnvironment.useDatabase(PULSAR_DB);
     }
 }
