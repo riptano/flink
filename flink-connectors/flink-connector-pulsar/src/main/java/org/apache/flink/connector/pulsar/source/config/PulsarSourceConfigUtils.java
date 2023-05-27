@@ -43,6 +43,7 @@ import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSA
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_ACK_RECEIPT_ENABLED;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_ACK_TIMEOUT_MILLIS;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_AUTO_ACK_OLDEST_CHUNKED_MESSAGE_ON_QUEUE_FULL;
+import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_AUTO_SCALED_RECEIVER_QUEUE_SIZE_ENABLED;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_CONSUMER_NAME;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_CONSUMER_PROPERTIES;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_CRYPTO_FAILURE_ACTION;
@@ -61,6 +62,7 @@ import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSA
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_RETRY_LETTER_TOPIC;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_SUBSCRIPTION_MODE;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_SUBSCRIPTION_NAME;
+import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_SUBSCRIPTION_PROPERTIES;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_SUBSCRIPTION_TYPE;
 import static org.apache.flink.connector.pulsar.source.PulsarSourceOptions.PULSAR_TICK_DURATION_MILLIS;
 
@@ -102,6 +104,7 @@ public final class PulsarSourceConfigUtils {
                 v -> builder.negativeAckRedeliveryDelay(v, MICROSECONDS));
         configuration.useOption(PULSAR_SUBSCRIPTION_TYPE, builder::subscriptionType);
         configuration.useOption(PULSAR_SUBSCRIPTION_MODE, builder::subscriptionMode);
+        configuration.useOption(PULSAR_SUBSCRIPTION_PROPERTIES, builder::subscriptionProperties);
         configuration.useOption(PULSAR_CRYPTO_FAILURE_ACTION, builder::cryptoFailureAction);
         configuration.useOption(PULSAR_RECEIVER_QUEUE_SIZE, builder::receiverQueueSize);
         configuration.useOption(
@@ -129,6 +132,9 @@ public final class PulsarSourceConfigUtils {
                 PULSAR_EXPIRE_TIME_OF_INCOMPLETE_CHUNKED_MESSAGE_MILLIS,
                 v -> builder.expireTimeOfIncompleteChunkedMessage(v, MILLISECONDS));
         configuration.useOption(PULSAR_POOL_MESSAGES, builder::poolMessages);
+        configuration.useOption(
+                PULSAR_AUTO_SCALED_RECEIVER_QUEUE_SIZE_ENABLED,
+                builder::autoScaledReceiverQueueSizeEnabled);
 
         Map<String, String> properties = configuration.getProperties(PULSAR_CONSUMER_PROPERTIES);
         if (!properties.isEmpty()) {
