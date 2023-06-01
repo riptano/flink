@@ -1815,7 +1815,7 @@ public final class Record implements Value, CopyableValue<Record> {
         }
 
         @SuppressWarnings("restriction")
-        private static final sun.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
+        private static final jdk.internal.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
 
         @SuppressWarnings("restriction")
         private static final long BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);

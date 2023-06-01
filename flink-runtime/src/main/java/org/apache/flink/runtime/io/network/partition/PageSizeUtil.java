@@ -20,16 +20,6 @@ package org.apache.flink.runtime.io.network.partition;
 
 import org.apache.flink.util.ExceptionUtils;
 
-import org.apache.flink.shaded.netty4.io.netty.util.internal.PlatformDependent;
-import org.apache.flink.shaded.netty4.io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess;
-
-import sun.misc.Unsafe;
-
-import javax.annotation.Nullable;
-
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-
 /** Utility for accessing the system page size. */
 public final class PageSizeUtil {
 
@@ -93,19 +83,7 @@ public final class PageSizeUtil {
     private static final class PageSizeUtilInternal {
 
         static int getSystemPageSize() {
-            Unsafe unsafe = unsafe();
-            return unsafe == null ? PAGE_SIZE_UNKNOWN : unsafe.pageSize();
-        }
-
-        @Nullable
-        private static Unsafe unsafe() {
-            if (PlatformDependent.hasUnsafe()) {
-                return (Unsafe)
-                        AccessController.doPrivileged(
-                                (PrivilegedAction<Object>) () -> UnsafeAccess.UNSAFE);
-            } else {
-                return null;
-            }
+            return PAGE_SIZE_UNKNOWN;
         }
     }
 }

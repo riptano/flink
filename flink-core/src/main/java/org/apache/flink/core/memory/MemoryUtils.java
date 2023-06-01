@@ -21,7 +21,6 @@ package org.apache.flink.core.memory;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.util.Preconditions;
 
-import java.lang.reflect.Field;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -32,7 +31,7 @@ public class MemoryUtils {
 
     /** The "unsafe", which can be used to perform native memory accesses. */
     @SuppressWarnings({"restriction", "UseOfSunClasses"})
-    public static final sun.misc.Unsafe UNSAFE = getUnsafe();
+    public static final jdk.internal.misc.Unsafe UNSAFE = getUnsafe();
 
     /** The native byte order of the platform on which the system currently runs. */
     public static final ByteOrder NATIVE_BYTE_ORDER = ByteOrder.nativeOrder();
@@ -45,25 +44,8 @@ public class MemoryUtils {
             getClassByName("java.nio.DirectByteBuffer");
 
     @SuppressWarnings("restriction")
-    private static sun.misc.Unsafe getUnsafe() {
-        try {
-            Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-            unsafeField.setAccessible(true);
-            return (sun.misc.Unsafe) unsafeField.get(null);
-        } catch (SecurityException e) {
-            throw new Error(
-                    "Could not access the sun.misc.Unsafe handle, permission denied by security manager.",
-                    e);
-        } catch (NoSuchFieldException e) {
-            throw new Error("The static handle field in sun.misc.Unsafe was not found.", e);
-        } catch (IllegalArgumentException e) {
-            throw new Error("Bug: Illegal argument reflection access for static field.", e);
-        } catch (IllegalAccessException e) {
-            throw new Error("Access to sun.misc.Unsafe is forbidden by the runtime.", e);
-        } catch (Throwable t) {
-            throw new Error(
-                    "Unclassified error while trying to access the sun.misc.Unsafe handle.", t);
-        }
+    private static jdk.internal.misc.Unsafe getUnsafe() {
+        return jdk.internal.misc.Unsafe.getUnsafe();
     }
 
     private static long getClassFieldOffset(
