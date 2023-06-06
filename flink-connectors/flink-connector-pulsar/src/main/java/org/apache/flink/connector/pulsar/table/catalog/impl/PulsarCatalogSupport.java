@@ -19,6 +19,7 @@
 package org.apache.flink.connector.pulsar.table.catalog.impl;
 
 import org.apache.flink.connector.pulsar.common.config.PulsarOptions;
+import org.apache.flink.connector.pulsar.common.schema.BytesSchema;
 import org.apache.flink.connector.pulsar.table.PulsarTableFactory;
 import org.apache.flink.connector.pulsar.table.PulsarTableOptions;
 import org.apache.flink.connector.pulsar.table.catalog.PulsarCatalogConfiguration;
@@ -198,15 +199,24 @@ public class PulsarCatalogSupport {
                         table.getComment(),
                         table.getPartitionKeys(),
                         fillDefaultOptionsFromCatalogOptions(table.getOptions()));
+            } catch (PulsarAdminException.NotFoundException e) {
+                throw e;
             } catch (Exception e) {
-                e.printStackTrace();
                 throw new CatalogException(
-                        "Failed to fetch metadata for explict table: " + tablePath.getObjectName());
+                        "Failed to fetch metadata for explict table: " + tablePath.getObjectName(),
+                        e);
             }
         } else {
             String existingTopic = findTopicForNativeTable(tablePath);
-            final SchemaInfo pulsarSchema = pulsarAdminTool.getPulsarSchema(existingTopic);
-            return schemaToCatalogTable(pulsarSchema, existingTopic);
+            try {
+                final SchemaInfo pulsarSchema = pulsarAdminTool.getPulsarSchema(existingTopic);
+                return schemaToCatalogTable(pulsarSchema, existingTopic);
+            } catch (PulsarAdminException.NotFoundException e) {
+                if (!tableExists(tablePath)) {
+                    throw e;
+                }
+                return schemaToCatalogTable(BytesSchema.BYTES.getSchemaInfo(), existingTopic);
+            }
         }
     }
 
