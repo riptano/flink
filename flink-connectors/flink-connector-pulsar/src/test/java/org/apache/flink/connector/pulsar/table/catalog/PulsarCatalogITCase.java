@@ -45,8 +45,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -80,21 +78,20 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
 
     protected static final String AVRO_FORMAT = "avro";
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(PulsarCatalogITCase.class);
-
     private static final String INMEMORY_CATALOG = "inmemorycatalog";
     private static final String PULSAR_CATALOG1 = "pulsarcatalog1";
     private static final String PULSAR_CATALOG2 = "pulsarcatalog2";
 
     private static final String INMEMORY_DB = "mydatabase";
     private static final String PULSAR1_DB = "public/default";
-    private static final String PULSAR2_DB = "sample/ns1";
+    private static final String PULSAR2_DB = "public/ns1";
 
     private static final String FLINK_TENANT = "__flink_catalog";
 
     @BeforeAll
-    void before() {
+    void before() throws PulsarAdminException {
         registerCatalogs(tableEnv);
+        pulsar.operator().admin().namespaces().createNamespace(PULSAR2_DB);
     }
 
     @Nested
