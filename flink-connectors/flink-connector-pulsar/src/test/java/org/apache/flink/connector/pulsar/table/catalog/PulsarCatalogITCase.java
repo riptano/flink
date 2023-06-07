@@ -31,8 +31,11 @@ import org.apache.flink.shaded.guava30.com.google.common.collect.Sets;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.Schema;
+import org.apache.pulsar.client.impl.schema.KeyValueSchemaImpl;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.TenantInfo;
+import org.apache.pulsar.common.schema.KeyValue;
+import org.apache.pulsar.common.schema.KeyValueEncodingType;
 import org.apache.pulsar.shade.org.apache.commons.lang3.RandomStringUtils;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -767,6 +770,97 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
             assertThat(result).containsExactlyElementsOf(INTEGER_LIST);
         }
 
+        @Test
+        void readFromNativeTableWithKeyValueAvroSchema() throws Exception {
+            String topicName = newTopicName();
+            Schema<TestingUser> schema = Schema.AVRO(TestingUser.class);
+            KeyValue<TestingUser, TestingUser> expectedUser =
+                    new KeyValue<>(createRandomUser(), createRandomUser());
+            Schema<KeyValue<TestingUser, TestingUser>> keyValueSchema =
+                    KeyValueSchemaImpl.of(schema, schema, KeyValueEncodingType.SEPARATED);
+
+            pulsar.operator().sendMessage(topicName, keyValueSchema, expectedUser);
+
+            tableEnv.useCatalog(PULSAR_CATALOG1);
+            tableEnv.useDatabase(PULSAR1_DB);
+
+            final List<Row> result =
+                    collectRows(
+                            tableEnv.sqlQuery(
+                                    String.format(
+                                            "select age, name, `__key_age`, `__key_name` from %s",
+                                            TopicName.get(topicName).getLocalName())),
+                            1);
+            assertThat(result)
+                    .containsExactlyElementsOf(
+                            Collections.singletonList(
+                                    Row.of(
+                                            expectedUser.getValue().getAge(),
+                                            expectedUser.getValue().getName(),
+                                            expectedUser.getKey().getAge(),
+                                            expectedUser.getKey().getName())));
+        }
+
+        @Test
+        void readFromNativeTableWithKeyValuePrimitiveSchema() throws Exception {
+            String topicName = newTopicName();
+            String expectedString = "expected_string";
+            Integer expectedInteger = 42;
+            KeyValue<String, Integer> message = new KeyValue<>(expectedString, expectedInteger);
+            Schema<KeyValue<String, Integer>> keyValueSchema =
+                    KeyValueSchemaImpl.of(
+                            Schema.STRING, Schema.INT32, KeyValueEncodingType.SEPARATED);
+
+            pulsar.operator().sendMessage(topicName, keyValueSchema, message);
+
+            tableEnv.useCatalog(PULSAR_CATALOG1);
+            tableEnv.useDatabase(PULSAR1_DB);
+
+            final List<Row> result =
+                    collectRows(
+                            tableEnv.sqlQuery(
+                                    String.format(
+                                            "select `key`, `value` from %s",
+                                            TopicName.get(topicName).getLocalName())),
+                            1);
+            assertThat(result)
+                    .containsExactlyElementsOf(
+                            Collections.singletonList(Row.of(expectedString, expectedInteger)));
+        }
+
+        @Test
+        void readFromNativeTableWithPrimitiveKeyAvroValueSchema() throws Exception {
+            String topicName = newTopicName();
+            String expectedString = "expected_string";
+            TestingPojo expectedPojo = new TestingPojo("expected_pojo_key", "expected_pojo_value");
+            KeyValue<String, TestingPojo> message = new KeyValue<>(expectedString, expectedPojo);
+            Schema<KeyValue<String, TestingPojo>> keyValueSchema =
+                    KeyValueSchemaImpl.of(
+                            Schema.STRING,
+                            Schema.AVRO(TestingPojo.class),
+                            KeyValueEncodingType.SEPARATED);
+
+            pulsar.operator().sendMessage(topicName, keyValueSchema, message);
+
+            tableEnv.useCatalog(PULSAR_CATALOG1);
+            tableEnv.useDatabase(PULSAR1_DB);
+
+            final List<Row> result =
+                    collectRows(
+                            tableEnv.sqlQuery(
+                                    String.format(
+                                            "select `__key_key`, `key`, `value` from %s",
+                                            TopicName.get(topicName).getLocalName())),
+                            1);
+            assertThat(result)
+                    .containsExactlyElementsOf(
+                            Collections.singletonList(
+                                    Row.of(
+                                            expectedString,
+                                            expectedPojo.getKey(),
+                                            expectedPojo.getValue())));
+        }
+
         @ParameterizedTest
         @MethodSource("provideAvroBasedSchemaData")
         void writeToExplicitTableAndReadWithAvroBasedSchema(
@@ -1086,5 +1180,23 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
 
     private String newTopicName() {
         return RandomStringUtils.randomAlphabetic(5);
+    }
+
+    static class TestingPojo {
+        private final String key;
+        private final String value;
+
+        TestingPojo(String key, String value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public String getValue() {
+            return value;
+        }
     }
 }

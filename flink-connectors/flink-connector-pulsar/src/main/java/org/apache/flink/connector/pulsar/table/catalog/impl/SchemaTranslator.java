@@ -24,6 +24,7 @@ import org.apache.flink.formats.avro.typeutils.AvroSchemaConverter;
 import org.apache.flink.formats.json.JsonFormatFactory;
 import org.apache.flink.formats.raw.RawFormatFactory;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.FieldsDataType;
 import org.apache.flink.table.types.logical.RowType;
@@ -37,7 +38,10 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Translate a Pulsar Schema to Flink Table Schema. */
 public class SchemaTranslator {
@@ -51,23 +55,26 @@ public class SchemaTranslator {
         this.useMetadataFields = useMetadataFields;
     }
 
-    public org.apache.flink.table.api.Schema pulsarSchemaToFlinkSchema(SchemaInfo pulsarSchema)
+    public Schema pulsarSchemaToFlinkSchema(SchemaInfo pulsarSchema, String singleFieldFieldName)
             throws IncompatibleSchemaException {
-        final DataType fieldsDataType = pulsarSchemaToPhysicalFields(pulsarSchema);
-        org.apache.flink.table.api.Schema.Builder schemaBuilder =
-                org.apache.flink.table.api.Schema.newBuilder().fromRowDataType(fieldsDataType);
+        return fieldsToSchema(
+                pulsarSchemaToPhysicalFields(pulsarSchema, singleFieldFieldName).values());
+    }
+
+    public Schema fieldsToSchema(Collection<DataTypes.Field> fields) {
+        final DataType fieldsDataType = DataTypes.ROW(fields.toArray(new DataTypes.Field[0]));
+        Schema.Builder schemaBuilder = Schema.newBuilder().fromRowDataType(fieldsDataType);
 
         if (useMetadataFields) {
             throw new UnsupportedOperationException(
                     "Querying Pulsar Metadata is not supported yet");
         }
-
         return schemaBuilder.build();
     }
 
-    public DataType pulsarSchemaToPhysicalFields(SchemaInfo schemaInfo)
-            throws IncompatibleSchemaException {
-        List<DataTypes.Field> mainSchema = new ArrayList<>();
+    public Map<String, DataTypes.Field> pulsarSchemaToPhysicalFields(
+            SchemaInfo schemaInfo, String singleFieldFieldName) throws IncompatibleSchemaException {
+        Map<String, DataTypes.Field> mainSchema = new LinkedHashMap<>();
         DataType dataType = schemaInfo2SqlType(schemaInfo);
         // ROW and STRUCTURED are FieldsDataType
         if (dataType instanceof FieldsDataType) {
@@ -76,18 +83,17 @@ public class SchemaTranslator {
             List<String> fieldNames = rowType.getFieldNames();
             for (int i = 0; i < fieldNames.size(); i++) {
                 org.apache.flink.table.types.logical.LogicalType logicalType = rowType.getTypeAt(i);
+                String fieldName = fieldNames.get(i);
                 DataTypes.Field field =
                         DataTypes.FIELD(
-                                fieldNames.get(i),
-                                TypeConversions.fromLogicalToDataType(logicalType));
-                mainSchema.add(field);
+                                fieldName, TypeConversions.fromLogicalToDataType(logicalType));
+                mainSchema.put(fieldName, field);
             }
 
         } else {
-            mainSchema.add(DataTypes.FIELD(SINGLE_FIELD_FIELD_NAME, dataType));
+            mainSchema.put(singleFieldFieldName, DataTypes.FIELD(singleFieldFieldName, dataType));
         }
-
-        return DataTypes.ROW(mainSchema.toArray(new DataTypes.Field[0]));
+        return mainSchema;
     }
 
     public DataType schemaInfo2SqlType(SchemaInfo si) throws IncompatibleSchemaException {
