@@ -71,7 +71,7 @@ public class PulsarCatalogSupport {
             "__database_detailed_description";
 
     private static final String TABLE_PREFIX = "table_";
-    private static final String KEY_PREFIX = "key.";
+    private static final String KEY_PREFIX = "__key_";
 
     PulsarCatalogConfiguration catalogConfiguration;
 
@@ -279,40 +279,43 @@ public class PulsarCatalogSupport {
         initialTableOptions.put(PulsarTableOptions.TOPICS.key(), topicName);
 
         Schema schema;
-        if(pulsarSchema.getType() == SchemaType.KEY_VALUE) {
+        if (pulsarSchema.getType() == SchemaType.KEY_VALUE) {
             KeyValue<SchemaInfo, SchemaInfo> keyValueSchemaInfo =
                     KeyValueSchemaInfo.decodeKeyValueSchemaInfo(pulsarSchema);
             SchemaInfo keySchemaInfo = keyValueSchemaInfo.getKey();
             SchemaInfo valueSchemaInfo = keyValueSchemaInfo.getValue();
 
             Map<String, DataTypes.Field> valueFields =
-                    schemaTranslator.pulsarSchemaToPhysicalFields(valueSchemaInfo, "kv.value");
+                    schemaTranslator.pulsarSchemaToPhysicalFields(valueSchemaInfo, "value");
             Map<String, DataTypes.Field> keyFields =
-                    schemaTranslator.pulsarSchemaToPhysicalFields(keySchemaInfo, "kv.key");
+                    schemaTranslator.pulsarSchemaToPhysicalFields(keySchemaInfo, "key");
 
             String keyFormat = schemaTranslator.decideDefaultFlinkFormat(keySchemaInfo);
 
             // Resolve field name conflicts between key and value
             List<DataTypes.Field> fields = new ArrayList<>();
-            keyFields.forEach((fieldName, fieldValue) -> {
-                if (valueFields.containsKey(fieldName)) {
-                    if (AvroFormatFactory.IDENTIFIER.equals(keyFormat) || RawFormatFactory.IDENTIFIER.equals(keyFormat)) {
-                        fieldName = KEY_PREFIX + fieldName;
-                        fields.add(DataTypes.FIELD(fieldName, fieldValue.getDataType()));
-                    }
-                } else {
-                    fields.add(fieldValue);
-                }
-            });
+            keyFields.forEach(
+                    (fieldName, fieldValue) -> {
+                        if (valueFields.containsKey(fieldName)) {
+                            if (AvroFormatFactory.IDENTIFIER.equals(keyFormat)
+                                    || RawFormatFactory.IDENTIFIER.equals(keyFormat)) {
+                                fieldName = KEY_PREFIX + fieldName;
+                                fields.add(DataTypes.FIELD(fieldName, fieldValue.getDataType()));
+                            }
+                        } else {
+                            fields.add(fieldValue);
+                        }
+                    });
 
+            initialTableOptions.put(PulsarTableOptions.KEY_FORMAT.key(), keyFormat);
             initialTableOptions.put(
-                    PulsarTableOptions.KEY_FORMAT.key(), keyFormat);
-            initialTableOptions.put(
-                    FactoryUtil.FORMAT.key(), schemaTranslator.decideDefaultFlinkFormat(valueSchemaInfo));
+                    FactoryUtil.FORMAT.key(),
+                    schemaTranslator.decideDefaultFlinkFormat(valueSchemaInfo));
 
-            String keyFieldsOption = fields.stream()
-                    .map(DataTypes.AbstractField::getName)
-                    .collect(Collectors.joining(";"));
+            String keyFieldsOption =
+                    fields.stream()
+                            .map(DataTypes.AbstractField::getName)
+                            .collect(Collectors.joining(";"));
             initialTableOptions.put(PulsarTableOptions.KEY_FIELDS.key(), keyFieldsOption);
 
             fields.addAll(valueFields.values());
@@ -321,7 +324,8 @@ public class PulsarCatalogSupport {
         } else {
             schema = schemaTranslator.pulsarSchemaToFlinkSchema(pulsarSchema, "value");
             initialTableOptions.put(
-                    FactoryUtil.FORMAT.key(), schemaTranslator.decideDefaultFlinkFormat(pulsarSchema));
+                    FactoryUtil.FORMAT.key(),
+                    schemaTranslator.decideDefaultFlinkFormat(pulsarSchema));
         }
 
         Map<String, String> enrichedTableOptions =

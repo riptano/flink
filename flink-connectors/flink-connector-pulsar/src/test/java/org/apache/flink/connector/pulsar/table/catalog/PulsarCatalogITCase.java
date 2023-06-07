@@ -791,7 +791,7 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
                     collectRows(
                             tableEnv.sqlQuery(
                                     String.format(
-                                            "select age, name, `key.age`, `key.name` from %s",
+                                            "select age, name, `__key_age`, `__key_name` from %s",
                                             TopicName.get(topicName).getLocalName())),
                             1);
             assertThat(result)
@@ -823,12 +823,45 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
                     collectRows(
                             tableEnv.sqlQuery(
                                     String.format(
-                                            "select `kv.key`, `kv.value` from %s",
+                                            "select `key`, `value` from %s",
                                             TopicName.get(topicName).getLocalName())),
                             1);
             assertThat(result)
                     .containsExactlyElementsOf(
                             Collections.singletonList(Row.of(expectedString, expectedInteger)));
+        }
+
+        @Test
+        void readFromNativeTableWithPrimitiveKeyAvroValueSchema() throws Exception {
+            String topicName = newTopicName();
+            String expectedString = "expected_string";
+            TestingPojo expectedPojo = new TestingPojo("expected_pojo_key", "expected_pojo_value");
+            KeyValue<String, TestingPojo> message = new KeyValue<>(expectedString, expectedPojo);
+            Schema<KeyValue<String, TestingPojo>> keyValueSchema =
+                    KeyValueSchemaImpl.of(
+                            Schema.STRING,
+                            Schema.AVRO(TestingPojo.class),
+                            KeyValueEncodingType.SEPARATED);
+
+            pulsar.operator().sendMessage(topicName, keyValueSchema, message);
+
+            tableEnv.useCatalog(PULSAR_CATALOG1);
+            tableEnv.useDatabase(PULSAR1_DB);
+
+            final List<Row> result =
+                    collectRows(
+                            tableEnv.sqlQuery(
+                                    String.format(
+                                            "select `__key_key`, `key`, `value` from %s",
+                                            TopicName.get(topicName).getLocalName())),
+                            1);
+            assertThat(result)
+                    .containsExactlyElementsOf(
+                            Collections.singletonList(
+                                    Row.of(
+                                            expectedString,
+                                            expectedPojo.getKey(),
+                                            expectedPojo.getValue())));
         }
 
         @ParameterizedTest
@@ -1150,5 +1183,23 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
 
     private String newTopicName() {
         return RandomStringUtils.randomAlphabetic(5);
+    }
+
+    static class TestingPojo {
+        private final String key;
+        private final String value;
+
+        TestingPojo(String key, String value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public String getValue() {
+            return value;
+        }
     }
 }

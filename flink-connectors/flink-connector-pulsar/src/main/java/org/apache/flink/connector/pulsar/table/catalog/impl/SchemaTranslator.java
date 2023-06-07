@@ -55,9 +55,10 @@ public class SchemaTranslator {
         this.useMetadataFields = useMetadataFields;
     }
 
-    public Schema pulsarSchemaToFlinkSchema(SchemaInfo pulsarSchema,  String singleFieldFieldName)
+    public Schema pulsarSchemaToFlinkSchema(SchemaInfo pulsarSchema, String singleFieldFieldName)
             throws IncompatibleSchemaException {
-        return fieldsToSchema(pulsarSchemaToPhysicalFields(pulsarSchema, singleFieldFieldName).values());
+        return fieldsToSchema(
+                pulsarSchemaToPhysicalFields(pulsarSchema, singleFieldFieldName).values());
     }
 
     public Schema fieldsToSchema(Collection<DataTypes.Field> fields) {
@@ -71,8 +72,8 @@ public class SchemaTranslator {
         return schemaBuilder.build();
     }
 
-    public Map<String, DataTypes.Field> pulsarSchemaToPhysicalFields(SchemaInfo schemaInfo, String singleFieldFieldName)
-            throws IncompatibleSchemaException {
+    public Map<String, DataTypes.Field> pulsarSchemaToPhysicalFields(
+            SchemaInfo schemaInfo, String singleFieldFieldName) throws IncompatibleSchemaException {
         Map<String, DataTypes.Field> mainSchema = new LinkedHashMap<>();
         DataType dataType = schemaInfo2SqlType(schemaInfo);
         // ROW and STRUCTURED are FieldsDataType
@@ -85,8 +86,7 @@ public class SchemaTranslator {
                 String fieldName = fieldNames.get(i);
                 DataTypes.Field field =
                         DataTypes.FIELD(
-                                fieldName,
-                                TypeConversions.fromLogicalToDataType(logicalType));
+                                fieldName, TypeConversions.fromLogicalToDataType(logicalType));
                 mainSchema.put(fieldName, field);
             }
 
