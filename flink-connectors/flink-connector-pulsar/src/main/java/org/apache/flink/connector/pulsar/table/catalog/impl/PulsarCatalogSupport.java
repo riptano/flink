@@ -39,6 +39,8 @@ import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.schema.SchemaInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +58,7 @@ import static org.apache.flink.connector.pulsar.table.PulsarTableOptions.VALUE_F
  */
 public class PulsarCatalogSupport {
 
+    private static final Logger LOG = LoggerFactory.getLogger(PulsarCatalogSupport.class);
     private static final String DATABASE_COMMENT_KEY = "__database_comment";
     private static final String DATABASE_DESCRIPTION_KEY = "__database_description";
     private static final String DATABASE_DETAILED_DESCRIPTION_KEY =
@@ -69,7 +72,7 @@ public class PulsarCatalogSupport {
 
     private final String flinkCatalogTenant;
 
-    private SchemaTranslator schemaTranslator;
+    private final SchemaTranslator schemaTranslator;
 
     public PulsarCatalogSupport(
             PulsarCatalogConfiguration catalogConfiguration,
@@ -203,18 +206,21 @@ public class PulsarCatalogSupport {
                 throw e;
             } catch (Exception e) {
                 throw new CatalogException(
-                        "Failed to fetch metadata for explict table: " + tablePath.getObjectName(),
+                        "Failed to fetch metadata for explicit table: " + tablePath.getObjectName(),
                         e);
             }
         } else {
             String existingTopic = findTopicForNativeTable(tablePath);
             try {
                 final SchemaInfo pulsarSchema = pulsarAdminTool.getPulsarSchema(existingTopic);
+                LOG.info("{} found with schema {}", tablePath, pulsarSchema);
                 return schemaToCatalogTable(pulsarSchema, existingTopic);
             } catch (PulsarAdminException.NotFoundException e) {
                 if (!tableExists(tablePath)) {
                     throw e;
                 }
+                LOG.warn(
+                        "Found topic {} without schema. Defaulting to Schema.BYTES.", tablePath, e);
                 return schemaToCatalogTable(BytesSchema.BYTES.getSchemaInfo(), existingTopic);
             }
         }
@@ -233,12 +239,12 @@ public class PulsarCatalogSupport {
 
     public void createTable(ObjectPath tablePath, ResolvedCatalogTable table)
             throws PulsarAdminException {
-        // only allow creating table in explict database, the topic is used to save table
+        // only allow creating table in explicit database, the topic is used to save table
         // information
         if (!isExplicitDatabase(tablePath.getDatabaseName())) {
             throw new CatalogException(
                     String.format(
-                            "Can't create explict table under pulsar tenant/namespace: %s because it's a native database",
+                            "Can't create explicit table under pulsar tenant/namespace: %s because it's a native database",
                             tablePath.getDatabaseName()));
         }
 
