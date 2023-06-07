@@ -78,7 +78,7 @@ public final class MemorySegment {
 
     /** The unsafe handle for transparent memory copied (heap / off-heap). */
     @SuppressWarnings("restriction")
-    private static final sun.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
+    private static final jdk.internal.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
 
     /** The beginning of the byte array contents, relative to the byte array object. */
     @SuppressWarnings("restriction")

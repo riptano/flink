@@ -27,7 +27,7 @@ import org.apache.flink.core.memory.MemoryUtils;
  */
 public class BinaryRowDataUtil {
 
-    public static final sun.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
+    public static final jdk.internal.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
     public static final int BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
 
     public static final BinaryRowData EMPTY_ROW = new BinaryRowData(0);

@@ -31,7 +31,7 @@ public abstract class AbstractHeapVector extends AbstractWritableVector {
 
     public static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
 
-    public static final sun.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
+    public static final jdk.internal.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
     public static final int BYTE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
     public static final int INT_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(int[].class);
     public static final int LONG_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(long[].class);

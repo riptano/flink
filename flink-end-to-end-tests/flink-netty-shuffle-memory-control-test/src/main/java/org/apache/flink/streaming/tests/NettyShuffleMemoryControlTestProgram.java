@@ -28,7 +28,7 @@ import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunctio
 
 import org.apache.flink.shaded.netty4.io.netty.util.internal.OutOfDirectMemoryError;
 
-import sun.misc.Unsafe;
+import jdk.internal.misc.Unsafe;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 

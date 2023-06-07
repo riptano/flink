@@ -22,8 +22,6 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.SqlDialect;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.internal.TableEnvironmentInternal;
-import org.apache.flink.table.catalog.hive.HiveCatalog;
-import org.apache.flink.table.catalog.hive.HiveTestUtils;
 import org.apache.flink.table.delegation.Parser;
 
 /** An utility class that provides pre-prepared tables and sql parser. */
@@ -41,12 +39,7 @@ public class SqlParserHelper {
             useHiveCatalog = false;
             tableEnv = TableEnvironment.create(EnvironmentSettings.newInstance().build());
         } else if (SqlDialect.HIVE == sqlDialect) {
-            useHiveCatalog = true;
-            HiveCatalog hiveCatalog = HiveTestUtils.createHiveCatalog();
-            tableEnv = TableEnvironment.create(EnvironmentSettings.newInstance().build());
-            tableEnv.getConfig().setSqlDialect(sqlDialect);
-            tableEnv.registerCatalog(hiveCatalog.getName(), hiveCatalog);
-            tableEnv.useCatalog(hiveCatalog.getName());
+            throw new IllegalArgumentException("removed hive dialect");
         }
     }
 

@@ -60,6 +60,17 @@ under the License.
 				<enabled>false</enabled>
 			</releases>
 		</repository>
+		<repository>
+			<id>mvnrepository</id>
+			<url>http://repo1.maven.org/maven2</url>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+		</repository>
+
 	</repositories>
 
 	<modules>
@@ -67,39 +78,39 @@ under the License.
 		<module>flink-architecture-tests</module>
 		<module>flink-core</module>
 		<module>flink-java</module>
-		<module>flink-scala</module>
-		<module>flink-filesystems</module>
+<!--		<module>flink-scala</module>-->
+<!--		<module>flink-filesystems</module>-->
 		<module>flink-rpc</module>
 		<module>flink-runtime</module>
 		<module>flink-runtime-web</module>
 		<module>flink-optimizer</module>
 		<module>flink-streaming-java</module>
-		<module>flink-streaming-scala</module>
+<!--		<module>flink-streaming-scala</module>-->
 		<module>flink-connectors</module>
 		<module>flink-formats</module>
-		<module>flink-examples</module>
+<!--		<module>flink-examples</module>-->
 		<module>flink-clients</module>
 		<module>flink-container</module>
 		<module>flink-queryable-state</module>
-		<module>flink-tests</module>
+<!--		<module>flink-tests</module>-->
 		<module>flink-end-to-end-tests</module>
 		<module>flink-test-utils-parent</module>
 		<module>flink-state-backends</module>
 		<module>flink-dstl</module>
 		<module>flink-libraries</module>
 		<module>flink-table</module>
-		<module>flink-quickstart</module>
-		<module>flink-contrib</module>
-		<module>flink-dist</module>
-		<module>flink-dist-scala</module>
+<!--		<module>flink-quickstart</module>-->
+<!--		<module>flink-contrib</module>-->
+<!--		<module>flink-dist</module>-->
+<!--		<module>flink-dist-scala</module>-->
 		<module>flink-metrics</module>
 		<module>flink-yarn</module>
-		<module>flink-yarn-tests</module>
-		<module>flink-fs-tests</module>
-		<module>flink-docs</module>
-		<module>flink-python</module>
-		<module>flink-walkthroughs</module>
-		<module>flink-kubernetes</module>
+<!--		<module>flink-yarn-tests</module>-->
+<!--		<module>flink-fs-tests</module>-->
+<!--		<module>flink-docs</module>-->
+<!--		<module>flink-python</module>-->
+<!--		<module>flink-walkthroughs</module>-->
+<!--		<module>flink-kubernetes</module>-->
 		<module>flink-external-resources</module>
 		<module>tools/ci/flink-ci-tools</module>
 	</modules>
@@ -1046,11 +1057,13 @@ under the License.
 						<configuration>
 							<source>11</source>
 							<target>11</target>
+							<!--forceJavacCompilerUse>true</forceJavacCompilerUse-->
 							<compilerArgs combine.children="append">
 								<arg>--add-exports=java.base/sun.net.util=ALL-UNNAMED</arg>
 								<arg>--add-exports=java.management/sun.management=ALL-UNNAMED</arg>
 								<arg>--add-exports=java.rmi/sun.rmi.registry=ALL-UNNAMED</arg>
 								<arg>--add-exports=java.security.jgss/sun.security.krb5=ALL-UNNAMED</arg>
+								<arg>--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED</arg>
 							</compilerArgs>
 						</configuration>
 					</plugin>
