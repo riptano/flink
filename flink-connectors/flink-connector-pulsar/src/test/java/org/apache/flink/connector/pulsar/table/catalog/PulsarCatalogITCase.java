@@ -260,13 +260,13 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
         }
 
         @Test
-        void dropExplicitDatabaseWithTablesShouldFail() {
+        void dropExplicitDatabaseWithTablesShouldFail() throws Exception {
             tableEnv.useCatalog(PULSAR_CATALOG1);
             String explictDatabaseName = newDatabaseName();
             String topicName = newTopicName();
 
             String dbDDL = "CREATE DATABASE " + explictDatabaseName;
-            tableEnv.executeSql(dbDDL).print();
+            tableEnv.executeSql(dbDDL);
             tableEnv.useDatabase(explictDatabaseName);
 
             String createTableSql =
@@ -336,7 +336,7 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
             tableEnv.useCatalog(PULSAR_CATALOG1);
 
             String dbDDL = "CREATE DATABASE " + databaseName;
-            tableEnv.executeSql(dbDDL).print();
+            tableEnv.executeSql(dbDDL);
             tableEnv.useDatabase(databaseName);
 
             String tableDDL =
@@ -357,7 +357,7 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
 
             String databaseName = newDatabaseName();
             String dbDDL = "CREATE DATABASE " + databaseName;
-            tableEnv.executeSql(dbDDL).print();
+            tableEnv.executeSql(dbDDL);
             tableEnv.useDatabase(databaseName);
 
             String topicName = newTopicName();
@@ -544,6 +544,25 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
         }
 
         @Test
+        void readFromNativeTableFromExplicitDatabase() throws Exception {
+            tableEnv.useCatalog(PULSAR_CATALOG1);
+            tableEnv.useDatabase(DEFAULT_DB);
+            String topicName = newTopicName();
+
+            pulsar.operator().createTopic(topicName, 1);
+            pulsar.operator().sendMessages(topicName, Schema.INT32, INTEGER_LIST);
+
+            final List<Row> result =
+                    collectRows(
+                            tableEnv.sqlQuery(
+                                    String.format("SELECT * FROM `public/default`.%s", topicName)),
+                            INTEGER_LIST.size());
+            assertThat(result)
+                    .containsExactlyElementsOf(
+                            INTEGER_LIST.stream().map(Row::of).collect(Collectors.toList()));
+        }
+
+        @Test
         void readFromNativeTableWithMetadata() {
             // TODO this test will be implemented after useMetadata is supported;
         }
@@ -609,7 +628,7 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
             tableEnv.useCatalog(PULSAR_CATALOG1);
 
             String dbDDL = "CREATE DATABASE " + databaseName;
-            tableEnv.executeSql(dbDDL).print();
+            tableEnv.executeSql(dbDDL);
             tableEnv.useDatabase(databaseName);
 
             String sourceTableDDL =
@@ -631,6 +650,47 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
                                     String.format(
                                             "select * from %s ",
                                             TopicName.get(topicName).getLocalName())),
+                            1);
+            assertThat(result)
+                    .containsExactlyElementsOf(
+                            Collections.singletonList(
+                                    Row.of(expectedUser.getAge(), expectedUser.getName())));
+        }
+
+        @Test
+        void readFromExplicitTableFromNativeDatabase() throws Exception {
+            String databaseName = newDatabaseName();
+            String topicName = newTopicName();
+            TestingUser expectedUser = createRandomUser();
+            pulsar.operator().sendMessage(topicName, Schema.JSON(TestingUser.class), expectedUser);
+
+            tableEnv.useCatalog(PULSAR_CATALOG1);
+
+            String dbDDL = "CREATE DATABASE " + databaseName;
+            tableEnv.executeSql(dbDDL);
+            tableEnv.useDatabase(databaseName);
+
+            String sourceTableDDL =
+                    String.format(
+                            "CREATE TABLE %s (\n"
+                                    + "  age INT,\n"
+                                    + "  name STRING\n"
+                                    + ") with (\n"
+                                    + "   'connector' = 'pulsar',\n"
+                                    + "   'topics' = '%s',\n"
+                                    + "   'format' = 'json'\n"
+                                    + ")",
+                            topicName, topicName);
+            tableEnv.executeSql(sourceTableDDL).await();
+
+            tableEnv.useDatabase(PULSAR1_DB);
+
+            final List<Row> result =
+                    collectRows(
+                            tableEnv.sqlQuery(
+                                    String.format(
+                                            "select * from `%s`.%s ",
+                                            databaseName, TopicName.get(topicName).getLocalName())),
                             1);
             assertThat(result)
                     .containsExactlyElementsOf(
@@ -722,7 +782,7 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
             tableEnv.useCatalog(PULSAR_CATALOG1);
 
             String dbDDL = "CREATE DATABASE " + databaseName;
-            tableEnv.executeSql(dbDDL).print();
+            tableEnv.executeSql(dbDDL);
             tableEnv.useDatabase(databaseName);
 
             String sinkDDL =
@@ -768,7 +828,7 @@ public class PulsarCatalogITCase extends PulsarTableTestBase {
             tableEnv.useCatalog(PULSAR_CATALOG1);
 
             String dbDDL = "CREATE DATABASE " + databaseName;
-            tableEnv.executeSql(dbDDL).print();
+            tableEnv.executeSql(dbDDL);
             tableEnv.executeSql("USE " + databaseName + "");
 
             String sinkDDL =

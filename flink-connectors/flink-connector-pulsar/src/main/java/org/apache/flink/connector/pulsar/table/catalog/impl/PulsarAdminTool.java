@@ -23,7 +23,6 @@ import org.apache.flink.connector.pulsar.table.catalog.utils.TableSchemaHelper;
 
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.client.impl.schema.BytesSchema;
 import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
@@ -171,26 +170,8 @@ public class PulsarAdminTool implements AutoCloseable {
         TableSchemaHelper.deletePulsarSchema(admin, topicName);
     }
 
-    public SchemaInfo getPulsarSchema(String topic) {
-        try {
-            return admin.schemas().getSchemaInfo(TopicName.get(topic).toString());
-        } catch (PulsarAdminException e) {
-            if (e.getStatusCode() == 404) {
-                return BytesSchema.of().getSchemaInfo();
-            } else {
-                throw new IllegalStateException(
-                        String.format(
-                                "Failed to get schema information for %s",
-                                TopicName.get(topic).toString()),
-                        e);
-            }
-        } catch (Throwable e) {
-            throw new IllegalStateException(
-                    String.format(
-                            "Failed to get schema information for %s",
-                            TopicName.get(topic).toString()),
-                    e);
-        }
+    public SchemaInfo getPulsarSchema(String topic) throws PulsarAdminException {
+        return admin.schemas().getSchemaInfo(TopicName.get(topic).toString());
     }
 
     private List<String> getNonPartitionedTopics(String namespace) throws PulsarAdminException {
